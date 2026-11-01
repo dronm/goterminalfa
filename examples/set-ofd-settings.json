@@ -1,0 +1,10 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "setOfdSettings",
+	"params": {
+		"domain": "ofd.example.org",
+		"tcpPort": 7777,
+		"timerSeconds": 60
+	},
+	"requestId": "set-ofd-001"
+}

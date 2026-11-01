@@ -1,0 +1,10 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "setPrinterSettings",
+	"params": {
+		"fontSize": 0,
+		"retract": 0,
+		"additionalText": ""
+	},
+	"requestId": "set-printer-001"
+}

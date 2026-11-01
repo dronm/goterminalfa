@@ -1,0 +1,8 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "setDateTime",
+	"params": {
+		"dateTime": "2026-10-30T10:00"
+	},
+	"requestId": "set-clock-001"
+}

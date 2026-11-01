@@ -1,0 +1,43 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "beginReceipt",
+				"params": {}
+			},
+			{
+				"cmd": "addReceiptItem",
+				"params": {
+					"item": {
+						"name": "Example item",
+						"priceKopecks": 10000,
+						"quantity": "1",
+						"vatRate": 6,
+						"paymentMethod": 4
+					}
+				}
+			},
+			{
+				"cmd": "setReceiptPayment",
+				"params": {
+					"taxSystem": 1,
+					"cashKopecks": 10000,
+					"cashlessKopecks": 0,
+					"prepaymentKopecks": 0,
+					"creditKopecks": 0,
+					"counterProvisionKopecks": 0
+				}
+			},
+			{
+				"cmd": "finalizeReceipt",
+				"params": {
+					"calculationSign": 1,
+					"totalKopecks": 10000
+				}
+			}
+		]
+	},
+	"requestId": "receipt-001"
+}

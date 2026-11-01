@@ -1,0 +1,9 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "setControlSettings",
+	"params": {
+		"controlInterface": 0,
+		"tcpPort": 7777
+	},
+	"requestId": "set-control-001"
+}

@@ -1,0 +1,53 @@
+# Request examples
+
+Send read-only requests to `POST /api/v1/commands`:
+
+```bash
+curl --fail-with-body --silent --show-error \
+	-H 'Content-Type: application/json' \
+	--data-binary @examples/read-firmware.json \
+	http://127.0.0.1:8080/api/v1/commands
+```
+
+Add the configured bearer header if needed. The same pattern applies to these read-only files:
+
+Requests are identical for serial and TCP devices: `deviceId` selects the transport configured by the server. Use [../config.tcp.example.json](../config.tcp.example.json) for LAN or [../config.mixed.example.json](../config.mixed.example.json) for mixed units. The TCP example's `192.0.2.50:7778` is illustrative; the KKT's actual IP and command port must be configured separately.
+
+| File | Command |
+| --- | --- |
+| `read-serial-number.json` | `getSerialNumber` |
+| `read-serial-number-alias.json` | Alias `ID`, with an optional tracing request ID |
+| `read-firmware.json` | `getFirmwareVersion` |
+| `read-clock.json` | `getDateTime` |
+| `read-status.json` | `getStatus` |
+| `read-cash-counters.json` | `getCashCounters` |
+
+`read-settings.json` takes a snapshot with all four settings getters in one `executeOperation`. Although its inner commands only read, the application operation requires a request ID and is journaled. Reusing that ID replays the saved snapshot. Use a new ID for a new intentional snapshot, or call the individual getters for fresh reads without journal records.
+
+The following files are **templates for deliberate state-changing operations**, not commands run by an example script:
+
+| File | Effect and prerequisites |
+| --- | --- |
+| `set-clock.json` | Sets the device-local calendar time; replace the illustrative timestamp |
+| `sync-clock.json` | Sets the KKT clock from the Go process's current local time, with seconds dropped; no timestamp parameter is accepted |
+| `open-shift.json` | Opens a complete shift with printing suppressed; assumes automatic operation and fiscal mode |
+| `create-receipt.json` | Creates a 100-ruble cash receipt, no VAT, general taxation; adjust all registration-dependent values and ensure the shift is open |
+| `read-document-tlv.json` | Selects document 1 and drains its archive TLV cursor under one protected operation |
+| `set-network-settings.json` | Selects DHCP and supplies all required IPv4 fields as `0.0.0.0` placeholders |
+| `set-ofd-settings.json` | Sets the OFD domain, TCP port, and timer; replace the example domain and values with your provider's settings |
+| `set-printer-settings.json` | Sets normal font, no retract, and explicitly empty additional text; leaves the optional model absent |
+| `set-control-settings.json` | Selects serial control mode `0` and explicitly supplies the KKT TCP command port |
+| `deposit-cash.json` | Records a 100-ruble cash deposit |
+| `withdraw-cash.json` | Records a 10-ruble cash withdrawal; the device checks available cash and shift state |
+
+Each template has one illustrative `requestId`. Use the same ID only when retrying or looking up that exact intended operation; a matching completed request replays the saved response. Do not replace an unknown operation's ID to force it to run again.
+
+The receipt uses `quantity: "1"` as an exact decimal string and integer kopecks for amounts. Its complete sequence is `beginReceipt`, `addReceiptItem`, `setReceiptPayment`, and `finalizeReceipt`. The example does not infer the taxation system, VAT treatment, registered address, cashier, agent, or internet-payment requirements of your KKT.
+
+The settings setters use full documented forms, not patches. Omission of the optional OFD fallback IP or printer model remains omission; required fields are not filled with inferred defaults. Port numbers and timer values in the templates are illustrative, not manufacturer defaults. Cash templates use integer strings to demonstrate exact VLN amounts.
+
+`sync-clock.json` works with either transport. The server samples time after queue waiting and any configured identity verification, according to its own clock and timezone. For example, start it with `TZ=Asia/Yekaterinburg` when that is the intended device calendar timezone. A repeated request ID replays the original `data.dateTime` and does not set a later time; use a new ID for each new intended synchronization. The example creates no automatic or scheduled synchronization.
+
+Changing the control interface to Ethernet (`controlInterface: 1`) can disable the serial control path and must be the final step of an `executeOperation`. On a TCP-configured device, any network-settings or control-settings write must be the final step, even if its interface value remains unchanged. These writes do not modify the server's per-device configuration; change its connection separately. No supplied script selects Ethernet or sends mutating examples automatically. [../docs/LAN.md](../docs/LAN.md) describes the migration and read-only connection check.
+
+For request identity, schema details, archive bounds, and uncertain outcomes, see [../docs/API.md](../docs/API.md). Full field definitions are available from `GET /api/v1/commands` and [../docs/commands.json](../docs/commands.json).

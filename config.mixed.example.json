@@ -1,0 +1,41 @@
+{
+	"http": {
+		"listen": "127.0.0.1:8080",
+		"readHeaderTimeout": "5s",
+		"requestTimeout": "30s",
+		"shutdownTimeout": "35s",
+		"maxBodyBytes": 65536,
+		"bearerToken": ""
+	},
+	"logging": {
+		"level": "info",
+		"format": "json",
+		"file": ""
+	},
+	"database": {
+		"path": "./data/requests.db"
+	},
+	"devices": [
+		{
+			"id": "cashdesk-1",
+			"expectedSerialNumber": "550101046182",
+			"queueSize": 32,
+			"connection": {
+				"type": "serial",
+				"port": "/dev/terminalfa",
+				"baudRate": 115200,
+				"responseTimeout": "25s"
+			}
+		},
+		{
+			"id": "cashdesk-2",
+			"queueSize": 32,
+			"connection": {
+				"type": "tcp",
+				"address": "192.0.2.51:7778",
+				"connectTimeout": "5s",
+				"responseTimeout": "25s"
+			}
+		}
+	]
+}

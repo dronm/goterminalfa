@@ -1,0 +1,8 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "depositCash",
+	"params": {
+		"amountKopecks": "10000"
+	},
+	"requestId": "deposit-cash-001"
+}

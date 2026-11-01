@@ -1,0 +1,25 @@
+[Unit]
+Description=Terminal FA HTTP driver
+After=network.target
+
+[Service]
+Type=simple
+User=terminalfa
+Group=terminalfa
+SupplementaryGroups=dialout
+StateDirectory=goterminalfa
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/goterminalfa
+ExecStart=/usr/local/bin/goterminalfa -config /etc/goterminalfa/config.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=45s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

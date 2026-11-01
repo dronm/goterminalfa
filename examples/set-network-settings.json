@@ -1,0 +1,11 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "setNetworkSettings",
+	"params": {
+		"dynamicAddress": 1,
+		"ipAddress": "0.0.0.0",
+		"subnetMask": "0.0.0.0",
+		"gateway": "0.0.0.0"
+	},
+	"requestId": "set-network-001"
+}

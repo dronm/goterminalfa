@@ -1,0 +1,4822 @@
+{
+	"commands": [
+		{
+			"name": "getStatus",
+			"aliases": [
+				"0x01"
+			],
+			"protocolCode": "0x01",
+			"category": "diagnostics",
+			"titleRu": "Запрос статуса ККТ",
+			"description": "Read KKT status: the factory serial number, current device-local date/time, critical-error flag, printer status, fiscal storage presence and fiscal storage lifecycle flags. The positional response contains exactly 21 bytes.",
+			"descriptionRu": "Запрос статуса ККТ (0x01). Входные параметры: нет. Выходные данные: заводской номер ККТ, ASCII(12); текущие дата/время в ККТ, DATETIME(5); критические ошибки в ККТ, BYTE(1), 0 — ошибок нет, 1 — присутствуют; статус печатающего устройства, BYTE(1), 0 — корректный статус, бумага присутствует, 1 — устройство не подключено, 2 — отсутствует бумага, 3 — замятие бумаги, 5 — открыта крышка ПУ, 6 — ошибка отрезчика ПУ, 7 — аппаратная ошибка ПУ; наличие ФН в ККТ, BYTE(1), 1 — ФН подключен, 0 — ФН не подключен; фаза жизни ФН, BYTE(1), значения битов см. приложение 7.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "serialNumber",
+					"titleRu": "Заводской номер ККТ",
+					"description": "KKT factory serial number, distinct from the USB descriptor serial.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": true
+				},
+				{
+					"name": "dateTime",
+					"titleRu": "Текущие дата/время в ККТ",
+					"description": "Current device-local calendar date/time, encoded as year since 2000, month, day, hour and minute.",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": true
+				},
+				{
+					"name": "criticalErrors",
+					"titleRu": "Критические ошибки в ККТ",
+					"description": "0: no critical errors; 1: critical errors present.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "ошибок нет",
+						"1": "присутствуют"
+					}
+				},
+				{
+					"name": "printerStatus",
+					"titleRu": "Статус печатающего устройства",
+					"description": "Printer state reported by the KKT.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "корректный статус, бумага присутствует",
+						"1": "устройство не подключено",
+						"2": "отсутствует бумага",
+						"3": "замятие бумаги",
+						"5": "открыта крышка ПУ",
+						"6": "ошибка отрезчика ПУ",
+						"7": "аппаратная ошибка ПУ"
+					}
+				},
+				{
+					"name": "fiscalStoragePresent",
+					"titleRu": "Наличие ФН в ККТ",
+					"description": "0: fiscal storage absent; 1: fiscal storage connected.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "ФН не подключен",
+						"1": "ФН подключен"
+					}
+				},
+				{
+					"name": "lifecycleFlags",
+					"titleRu": "Фаза жизни ФН",
+					"description": "Fiscal storage lifecycle bits from Appendix 7. Documented combined phases are 1, 3, 7 and 15.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"0": "проведена настройка ФН",
+						"1": "открыт фискальный режим",
+						"2": "постфискальный режим",
+						"3": "закончена передача ФД в ОФД"
+					}
+				}
+			],
+			"notes": [
+				"Device-local calendar values have no implied timezone.",
+				"Documented status dictionaries describe known values; unknown response values are preserved for newer firmware."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 10
+			}
+		},
+		{
+			"name": "getSerialNumber",
+			"aliases": [
+				"0x02",
+				"ID"
+			],
+			"protocolCode": "0x02",
+			"category": "identification",
+			"titleRu": "Запрос заводского номера ККТ",
+			"description": "Read the KKT factory serial number. No input parameters. The successful response contains exactly twelve decimal characters. This is not the USB descriptor serial number.",
+			"descriptionRu": "Запрос заводского номера ККТ (0x02). Входные параметры: нет. Выходные данные: заводской номер ККТ, ASCII(12).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "serialNumber",
+					"titleRu": "Заводской номер ККТ",
+					"description": "KKT factory serial number, distinct from the USB descriptor serial.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 10
+			}
+		},
+		{
+			"name": "getFirmwareVersion",
+			"aliases": [
+				"0x03"
+			],
+			"protocolCode": "0x03",
+			"category": "identification",
+			"titleRu": "Запрос версии ПО ККТ",
+			"description": "Read the KKT firmware version as a CP866 string with the length supplied by the response frame.",
+			"descriptionRu": "Запрос версии ПО ККТ (0x03). Входные параметры: нет. Выходные данные: версия ПО ККТ, ASCII(N).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "firmwareVersion",
+					"titleRu": "Версия ПО ККТ",
+					"description": "KKT firmware version.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 10
+			}
+		},
+		{
+			"name": "getModel",
+			"aliases": [
+				"0x04"
+			],
+			"protocolCode": "0x04",
+			"category": "identification",
+			"titleRu": "Запрос модели ККТ",
+			"description": "Read the KKT model name as a CP866 string with the length supplied by the response frame.",
+			"descriptionRu": "Запрос модели ККТ (0x04). Входные параметры: нет. Выходные данные: название модели ККТ, ASCII(N).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "model",
+					"titleRu": "Название модели ККТ",
+					"description": "KKT model name.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 10
+			}
+		},
+		{
+			"name": "getFiscalStorageSerialNumber",
+			"aliases": [
+				"0x05"
+			],
+			"protocolCode": "0x05",
+			"category": "identification",
+			"titleRu": "Запрос заводского номера ФН",
+			"description": "Read the factory serial number of the fiscal storage unit. The wire field is variable-length ASCII(N), as specified by this command's table.",
+			"descriptionRu": "Запрос заводского номера ФН (0x05). Входные параметры: нет. Выходные данные: заводской номер ФН, ASCII(N).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "fiscalStorageSerialNumber",
+					"titleRu": "Заводской номер ФН",
+					"description": "Factory serial number of the fiscal storage unit.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 10
+			}
+		},
+		{
+			"name": "getFiscalStorageFirmwareVersion",
+			"aliases": [
+				"0x06"
+			],
+			"protocolCode": "0x06",
+			"category": "identification",
+			"titleRu": "Запрос версии ПО ФН",
+			"description": "Read the fiscal storage firmware version as a variable-length CP866 string.",
+			"descriptionRu": "Запрос версии ПО ФН (0x06). Входные параметры: нет. Выходные данные: версия ПО ФН, ASCII(N).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "firmwareVersion",
+					"titleRu": "Версия ПО ФН",
+					"description": "Fiscal storage firmware version.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 10
+			}
+		},
+		{
+			"name": "getFiscalStorageValidity",
+			"aliases": [
+				"0x07"
+			],
+			"protocolCode": "0x07",
+			"category": "diagnostics",
+			"titleRu": "Запрос срока действия ФН",
+			"description": "Read the fiscal storage expiration date and the counts of available and completed re-registrations. The three-byte date is year since 2000, month, day.",
+			"descriptionRu": "Запрос срока действия ФН (0x07). Входные параметры: нет. Выходные данные: срок действия ФН, BYTE(3), YMD (год начиная с 2000); доступно перерегистраций, BYTE(1), целое; проведено перерегистраций, BYTE(1), целое.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "expiresOn",
+					"titleRu": "Срок действия ФН",
+					"description": "Expiration date; year is encoded relative to 2000.",
+					"jsonType": "string",
+					"wireType": "DATETIME3",
+					"required": true
+				},
+				{
+					"name": "availableReregistrations",
+					"titleRu": "Доступно перерегистраций",
+					"description": "Number of available re-registrations.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				},
+				{
+					"name": "completedReregistrations",
+					"titleRu": "Проведено перерегистраций",
+					"description": "Number of completed re-registrations.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 10
+			}
+		},
+		{
+			"name": "getFiscalStorageStatus",
+			"aliases": [
+				"0x08"
+			],
+			"protocolCode": "0x08",
+			"category": "diagnostics",
+			"titleRu": "Запрос статуса ФН",
+			"description": "Read fiscal storage lifecycle flags, open document, received-data flag, shift state, warnings, last document date/time, fiscal storage serial number, and last fiscal document number.",
+			"descriptionRu": "Запрос статуса ФН (0x08). Входные параметры: нет. Выходные данные: фаза жизни ФН, BYTE; текущий документ, BYTE; данные документа, BYTE (0 — нет данных документа, 1 — получены данные документа); состояние смены, BYTE (0 — смена закрыта, 1 — смена открыта); флаги и предупреждения, BYTE (приложение 3); дата и время последнего документа, DATETIME(5), YMDHm; номер ФН, ASCII(16); номер последнего ФД, UINT32 LE.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "lifecycleFlags",
+					"titleRu": "Фаза жизни ФН",
+					"description": "Fiscal storage lifecycle bitmask; see Appendix 7.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"0": "проведена настройка ФН",
+						"1": "открыт фискальный режим",
+						"2": "постфискальный режим",
+						"3": "закончена передача ФД в ОФД"
+					}
+				},
+				{
+					"name": "currentDocument",
+					"titleRu": "Текущий документ",
+					"description": "Code of the currently open fiscal document.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "нет открытого документа",
+						"1": "отчет о регистрации ККТ",
+						"16": "отчет о закрытии фискального режима",
+						"18": "отчет об изменении параметров регистрации в связи с заменой ФН",
+						"19": "отчет об изменении параметров регистрации ККТ",
+						"2": "отчет об открытии смены",
+						"20": "кассовый чек коррекции",
+						"23": "отчет о текущем состоянии расчетов",
+						"4": "кассовый чек",
+						"8": "отчет о закрытии смены"
+					}
+				},
+				{
+					"name": "documentDataReceived",
+					"titleRu": "Данные документа",
+					"description": "0: document data absent; 1: document data received.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "нет данных документа",
+						"1": "получены данные документа"
+					}
+				},
+				{
+					"name": "shiftOpen",
+					"titleRu": "Состояние смены",
+					"description": "0: shift closed; 1: shift open.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "смена закрыта",
+						"1": "смена открыта"
+					}
+				},
+				{
+					"name": "warningFlags",
+					"titleRu": "Флаги и предупреждения",
+					"description": "Fiscal storage warning flags from Appendix 3.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"0": "срочная замена КС: до окончания срока действия 3 дня",
+						"1": "исчерпание ресурса КС: до окончания срока действия 30 дней",
+						"2": "переполнение памяти ФН: архив заполнен на 90%",
+						"3": "превышено время ожидания ответа ОФД",
+						"7": "критическая ошибка ФН"
+					}
+				},
+				{
+					"name": "lastDocumentDateTime",
+					"titleRu": "Дата и время последнего документа",
+					"description": "Device-local calendar date/time of the last document, or null for a zero-filled date.",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": true,
+					"allowZeroDate": true
+				},
+				{
+					"name": "fiscalStorageSerialNumber",
+					"titleRu": "Номер ФН",
+					"description": "Fixed-width fiscal storage serial number.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 16,
+					"required": true
+				},
+				{
+					"name": "lastDocumentNumber",
+					"titleRu": "Номер последнего ФД",
+					"description": "Last fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"notes": [
+				"The positional response is exactly 30 bytes.",
+				"A zero-filled last-document date is returned as null; no timezone is invented for device calendar values."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 11
+			}
+		},
+		{
+			"name": "getFiscalStorageErrors",
+			"aliases": [
+				"0x09"
+			],
+			"protocolCode": "0x09",
+			"category": "diagnostics",
+			"titleRu": "Запрос последних ошибок ФН",
+			"description": "Read the last fiscal storage errors as an opaque hexadecimal byte buffer. The manual does not define record boundaries or fields inside BYTE(N).",
+			"descriptionRu": "Запрос последних ошибок ФН (0x09). Входные параметры: нет. Выходные данные: буфер данных, BYTE(N).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "dataHex",
+					"titleRu": "Буфер данных",
+					"description": "Uninterpreted error buffer represented as hexadecimal, preserving every byte.",
+					"jsonType": "string",
+					"wireType": "RAW",
+					"required": true
+				}
+			],
+			"notes": [
+				"No undocumented interpretation of the error buffer is performed."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 12
+			}
+		},
+		{
+			"name": "getRegistrationParameters",
+			"aliases": [
+				"0x0A",
+				"0x0a"
+			],
+			"protocolCode": "0x0A",
+			"category": "diagnostics",
+			"titleRu": "Запрос текущих параметров регистрации ККТ",
+			"description": "Read parameters of the most recent KKT registration or re-registration. Registration number and taxpayer INN are right-padded with spaces on the wire; output strings omit that padding.",
+			"descriptionRu": "Запрос текущих параметров регистрации ККТ (0x0A). Команда возвращает данные последней регистрации (перерегистрации) ККТ. Входные параметры: нет. Выходные данные: РН ККТ, ASCII(20), дополняется пробелами справа до длины 20 символов; ИНН, ASCII(12), дополняется пробелами справа до длины 12 символов; режимы работы ККТ, BYTE, битовая маска; режимы налогообложения, BYTE, битовая маска; признак платежного агента, BYTE, битовая маска. Значения битов см. приложение 7.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "registrationNumber",
+					"titleRu": "РН ККТ",
+					"description": "KKT registration number, excluding right-space padding.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 20,
+					"required": true,
+					"padding": "space"
+				},
+				{
+					"name": "taxpayerINN",
+					"titleRu": "ИНН",
+					"description": "Taxpayer INN, excluding right-space padding.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": true,
+					"padding": "space"
+				},
+				{
+					"name": "operatingModes",
+					"titleRu": "Режимы работы ККТ",
+					"description": "Operating-mode bitmask from Appendix 7.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"0": "шифрование",
+						"1": "автономный режим",
+						"2": "автоматический режим",
+						"3": "применение в сфере услуг",
+						"4": "режим БСО; иначе режим кассовых чеков",
+						"5": "ККТ для интернет"
+					}
+				},
+				{
+					"name": "taxationSystems",
+					"titleRu": "Режимы налогообложения",
+					"description": "Taxation-system bitmask from Appendix 7; the dictionary reproduces the protocol's terminology.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"0": "общая",
+						"1": "упрощенная доход",
+						"2": "упрощенная доход минус расход",
+						"3": "единый налог на вмененный доход",
+						"4": "единый сельскохозяйственный налог",
+						"5": "патентная система налогообложения"
+					}
+				},
+				{
+					"name": "paymentAgentFlags",
+					"titleRu": "Признак платежного агента",
+					"description": "Agent-role bitmask from Appendix 7.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"0": "банковский платежный агент",
+						"1": "банковский платежный субагент",
+						"2": "платежный агент",
+						"3": "платежный субагент",
+						"4": "поверенный",
+						"5": "комиссионер",
+						"6": "агент, не являющийся банковским платежным агентом, платежным агентом, поверенным или комиссионером"
+					}
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 11
+			}
+		},
+		{
+			"name": "getConfigurationVersion",
+			"aliases": [
+				"0x0B",
+				"0x0b"
+			],
+			"protocolCode": "0x0B",
+			"category": "identification",
+			"titleRu": "Запрос версии конфигурации ККТ",
+			"description": "Read the KKT configuration version, documented as an X.X.X string.",
+			"descriptionRu": "Запрос версии конфигурации ККТ (0x0B). Входные параметры: нет. Выходные данные: номер версии конфигурации ККТ, ASCII(N), строка в формате X.X.X.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "configurationVersion",
+					"titleRu": "Номер версии конфигурации ККТ",
+					"description": "Configuration version, documented as X.X.X.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 11
+			}
+		},
+		{
+			"name": "getNetworkParameters",
+			"aliases": [
+				"0x0E",
+				"0x0e"
+			],
+			"protocolCode": "0x0E",
+			"category": "diagnostics",
+			"titleRu": "Запрос текущих параметров TCP/IP Ethernet интерфейса",
+			"description": "Read the current Ethernet IPv4 address, subnet mask and default gateway. Each field is a little-endian UINT32 whose numeric value is interpreted in conventional IPv4 octet order.",
+			"descriptionRu": "Запрос текущих параметров TCP/IP Ethernet интерфейса (0x0E). Входные параметры: нет. Выходные данные: IP адрес, UINT32 LE; маска подсети, UINT32 LE; шлюз по умолчанию, UINT32 LE. Например, IP-адрес 0xC0A80A3A означает 192.168.10.58; маска 0xFFFFFF00 означает 255.255.255.0; шлюз 0xC0A80A01 означает 192.168.10.1.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "ipAddress",
+					"titleRu": "IP адрес",
+					"description": "Current Ethernet IPv4 address.",
+					"jsonType": "string",
+					"wireType": "IPV4",
+					"required": true
+				},
+				{
+					"name": "subnetMask",
+					"titleRu": "Маска подсети",
+					"description": "IPv4 subnet mask.",
+					"jsonType": "string",
+					"wireType": "IPV4",
+					"required": true
+				},
+				{
+					"name": "defaultGateway",
+					"titleRu": "Шлюз по умолчанию",
+					"description": "IPv4 default gateway.",
+					"jsonType": "string",
+					"wireType": "IPV4",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 12
+			}
+		},
+		{
+			"name": "cancelDocument",
+			"aliases": [
+				"0x10"
+			],
+			"protocolCode": "0x10",
+			"category": "documents",
+			"titleRu": "Отменить текущий документ",
+			"description": "Cancel any previously started fiscal document and discard all document data already supplied.",
+			"descriptionRu": "Команда отменяет любой ранее начатый фискальный документ. Все данные, введенные с помощью команды «Передать данные документа», удаляются. Входные параметры: нет. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 15
+			}
+		},
+		{
+			"name": "startRegistration",
+			"aliases": [
+				"0x12"
+			],
+			"protocolCode": "0x12",
+			"category": "registration",
+			"titleRu": "Начать отчет о регистрации/перерегистрации ККТ",
+			"description": "Start a registration or re-registration report. Further registration data must be supplied before finalizing with 0x13.",
+			"descriptionRu": "Команда начинает процедуру регистрации/перерегистрации ККТ. Тип отчета: 0 — первоначальная регистрация ККТ; 1 — перерегистрация в связи с заменой ФН; 2 — перерегистрация без замены ФН. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "reportType",
+					"titleRu": "Тип отчета",
+					"description": "0 initial registration; 1 re-registration replacing the FN; 2 re-registration without FN replacement.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "Initial registration",
+						"1": "Re-registration replacing the FN",
+						"2": "Re-registration without FN replacement"
+					}
+				}
+			],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 13
+			}
+		},
+		{
+			"name": "completeRegistration",
+			"aliases": [
+				"0x13"
+			],
+			"protocolCode": "0x13",
+			"category": "registration",
+			"titleRu": "Сформировать отчет о регистрации/перерегистрации",
+			"description": "Finalize the previously started registration or re-registration report. The optional trailing reason byte must be omitted for initial registration.",
+			"descriptionRu": "Команда завершает процесс регистрации (перерегистрации) ККТ. ИНН пользователя дополняется пробелами до длины 12 символов. РН ККТ — 20 символов. Режим налогообложения — битовая маска. В случае первоначальной регистрации ККТ параметр «Код причины перерегистрации» в команду не включается. Выходные данные: номер ФД UINT32 LE, фискальный признак UINT32 LE.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "userInn",
+					"titleRu": "ИНН пользователя",
+					"description": "Registered user's INN, 10 or 12 decimal digits, right-padded with spaces to twelve bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": true,
+					"padding": "space"
+				},
+				{
+					"name": "registrationNumber",
+					"titleRu": "Регистрационный номер ККТ (РН ККТ)",
+					"description": "KKT registration number: exactly twenty encoded bytes, as specified by this protocol revision.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 20,
+					"required": true
+				},
+				{
+					"name": "taxationSystems",
+					"titleRu": "Режим налогообложения",
+					"description": "Bitmask of permitted taxation systems, Appendix 7.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"0": "General taxation",
+						"1": "Simplified income",
+						"2": "Simplified income minus expenses",
+						"3": "Imputed income (as listed in this protocol revision)",
+						"4": "Unified agricultural tax",
+						"5": "Patent taxation"
+					}
+				},
+				{
+					"name": "reregistrationReason",
+					"titleRu": "Код причины перерегистрации",
+					"description": "Omit for initial registration. Include for re-registration: 1 FN replacement, 2 OFD replacement, 3 changed details, 4 changed details and settings.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"1": "FN replacement",
+						"2": "OFD replacement",
+						"3": "Changed registration details",
+						"4": "Changed details and settings"
+					},
+					"requiredIf": "Required when finalizing a re-registration started with reportType 1 or 2; omitted for reportType 0."
+				}
+			],
+			"output": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Fiscal document sign.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"notes": [
+				"The current request alone does not identify whether the previous 0x12 used reportType 0, 1 or 2. The caller must omit or include reregistrationReason consistently with that report.",
+				"Registration-number width follows protocol 01.05; do not silently pad or truncate a shorter value."
+			],
+			"preconditions": [
+				"A registration/re-registration report must have been started with 0x12 and all necessary report data supplied with 0x16."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 13
+			}
+		},
+		{
+			"name": "beginFiscalStorageClosure",
+			"aliases": [
+				"0x14"
+			],
+			"protocolCode": "0x14",
+			"category": "unresolved",
+			"titleRu": "Начать отчет о закрытии ФН",
+			"description": "Listed in the base protocol without a payload definition. The separate FFD 1.2 supplement is not silently substituted for the configured base protocol.",
+			"descriptionRu": "Команда перечислена в протоколе, но формат входных и выходных данных не определен.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": false,
+			"unavailableReason": "Listed in the base protocol without a payload definition. The separate FFD 1.2 supplement is not silently substituted for the configured base protocol.",
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 7
+			}
+		},
+		{
+			"name": "finalizeFiscalStorageClosure",
+			"aliases": [
+				"0x15"
+			],
+			"protocolCode": "0x15",
+			"category": "unresolved",
+			"titleRu": "Сформировать отчет о закрытии ФН",
+			"description": "The base protocol provides no payload definition; the FFD 1.2 supplement uses a conflicting command code. Manufacturer clarification is required.",
+			"descriptionRu": "Команда перечислена в протоколе, но формат входных и выходных данных не определен.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": false,
+			"unavailableReason": "The base protocol provides no payload definition; the FFD 1.2 supplement uses a conflicting command code. Manufacturer clarification is required.",
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 7
+			}
+		},
+		{
+			"name": "sendRegistrationData",
+			"aliases": [
+				"0x16"
+			],
+			"protocolCode": "0x16",
+			"category": "registration",
+			"titleRu": "Передать данные отчета о регистрации",
+			"description": "Supply the TLV data for a registration/re-registration report. OFD fields are required outside autonomous mode; omitted vending-specific registration fields must be provided per receipt where the documented multi-device mode permits this.",
+			"descriptionRu": "Для выполнения данной команды необходимо предварительное выполнение команды «Начать отчет о регистрации/перерегистрации ККТ» (0x12). Тэги 1017, 1046, 1117 не указываются (игнорируются ККТ) в случае регистрации в автономном режиме. Тэг 1036 указывается в случае регистрации ККТ в составе автоматического устройства расчетов (на странице 13 для Терминал-ФА указан как обязательный). На странице 19 допускается регистрация без адреса расчетов, места расчета и номера автомата с передачей отсутствующих тэгов в чеке командой 0x1F. Тэг 1057: биты выставляются в соответствии с возможными типами агента. Тэг 9999: режим работы, служебный тэг; значения битов приведены в приложении 7. Независимо от значения в тэге 9999 ККТ «Терминал-ФА» будет зарегистрирована в автоматическом режиме. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "userName",
+					"titleRu": "Наименование пользователя",
+					"description": "Registered user's name, at most 128 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 128,
+					"required": true,
+					"tag": 1048
+				},
+				{
+					"name": "settlementAddress",
+					"titleRu": "Адрес расчетов",
+					"description": "Settlement address; omitted registration values must be supplied per receipt using 0x1F.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 164,
+					"required": false,
+					"tag": 1009,
+					"requiredIf": "Required unless the settlement address is intentionally assigned per receipt under the multiple-vending-device mode described on page 19."
+				},
+				{
+					"name": "settlementPlace",
+					"titleRu": "Место расчетов",
+					"description": "Settlement location; omitted registration values must be supplied per receipt.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": false,
+					"tag": 1187,
+					"requiredIf": "Required unless the settlement place is intentionally assigned per receipt as described on page 19."
+				},
+				{
+					"name": "representativeName",
+					"titleRu": "ФИО уполномоченного лица",
+					"description": "Authorized representative's full name.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": true,
+					"tag": 1021
+				},
+				{
+					"name": "representativeInn",
+					"titleRu": "ИНН уполномоченного лица",
+					"description": "Authorized representative's INN, exactly 12 decimal digits.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": true,
+					"tag": 1203
+				},
+				{
+					"name": "ofdInn",
+					"titleRu": "ИНН ОФД",
+					"description": "OFD INN, 10 or 12 decimal digits, right-padded with spaces to twelve bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": false,
+					"tag": 1017,
+					"requiredIf": "Required unless operatingMode has autonomous-mode bit 1 set.",
+					"padding": "space"
+				},
+				{
+					"name": "ofdName",
+					"titleRu": "Наименование ОФД",
+					"description": "OFD name; omitted or ignored in autonomous mode.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": false,
+					"tag": 1046,
+					"requiredIf": "Required unless operatingMode has autonomous-mode bit 1 set."
+				},
+				{
+					"name": "senderEmail",
+					"titleRu": "Электронный адрес отправителя чеков",
+					"description": "Receipt sender's email; omitted or ignored in autonomous mode.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": false,
+					"tag": 1117,
+					"requiredIf": "Required unless operatingMode has autonomous-mode bit 1 set."
+				},
+				{
+					"name": "machineNumber",
+					"titleRu": "Номер автоматического устройства расчетов",
+					"description": "Vending device number, at most 21 encoded bytes; see the page-13/page-19 registration-presence notes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 21,
+					"required": false,
+					"tag": 1036,
+					"requiredIf": "Required for ordinary Terminal FA registration (page 13); may be omitted when assigned per receipt in multiple-device operation (page 19)."
+				},
+				{
+					"name": "agentFlags",
+					"titleRu": "Признак платежного агента",
+					"description": "Bitmask of possible agent roles; see Appendix 7.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 1057,
+					"bits": {
+						"0": "Bank payment agent",
+						"1": "Bank payment subagent",
+						"2": "Payment agent",
+						"3": "Payment subagent",
+						"4": "Attorney",
+						"5": "Commission agent",
+						"6": "Other agent"
+					}
+				},
+				{
+					"name": "operatingMode",
+					"titleRu": "Режим работы",
+					"description": "Service tag 9999 containing operating-mode flags. Terminal FA is registered in automatic mode regardless of this byte.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 9999,
+					"bits": {
+						"0": "Encryption",
+						"1": "Autonomous mode",
+						"2": "Automatic mode",
+						"3": "Services",
+						"4": "Automated strict-reporting forms",
+						"5": "Internet electronic payments"
+					}
+				}
+			],
+			"output": [],
+			"notes": [
+				"The manual's page 13 and page 19 describe different presence requirements for vending-specific registration fields. Their omission is supported for the per-receipt assignment mode; use 0x1F as required by the device's registration.",
+				"The service does not infer the applicable registration mode from a missing field; supply the fields required by the intended device configuration."
+			],
+			"preconditions": [
+				"A registration/re-registration report must have been started successfully with 0x12."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 13
+			}
+		},
+		{
+			"name": "sendFiscalStorageClosureData",
+			"aliases": [
+				"0x17"
+			],
+			"protocolCode": "0x17",
+			"category": "unresolved",
+			"titleRu": "Передать данные отчета о закрытии ФН",
+			"description": "Listed without a payload definition in the base protocol. FFD 1.2-specific fields are not assumed to apply to this base protocol.",
+			"descriptionRu": "Команда перечислена в протоколе, но формат входных и выходных данных не определен.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": false,
+			"unavailableReason": "Listed without a payload definition in the base protocol. FFD 1.2-specific fields are not assumed to apply to this base protocol.",
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 7
+			}
+		},
+		{
+			"name": "addCashlessPaymentDetails",
+			"aliases": [
+				"0x19"
+			],
+			"protocolCode": "0x19",
+			"category": "receipts",
+			"titleRu": "Передать сведения об оплате безналичными",
+			"description": "Supply details of one cashless payment after payment data has been supplied. The KKT forms STLV 1234–1235 from the listed input TLVs. This command is not valid for correction receipts.",
+			"descriptionRu": "Данная команда формирует STLV 1234–1235 (сведения обо всех оплатах по чеку безналичными). Может быть выполнена после передачи данных оплаты (0x2D). Для кассовых чеков коррекции команда недопустима и вернет ошибку 0x28. Дополнительные сведения о безналичной оплате необязательны. Справочник способа оплаты в документе не актуализирован ФНС.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "amountKopecks",
+					"titleRu": "Сумма оплаты безналичными",
+					"description": "Сумма оплаты безналичными",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1082,
+					"unit": "kopecks"
+				},
+				{
+					"name": "paymentMethod",
+					"titleRu": "Признак способа оплаты безналичными",
+					"description": "Признак способа оплаты безналичными",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 1236
+				},
+				{
+					"name": "identifiers",
+					"titleRu": "Идентификаторы безналичной оплаты",
+					"description": "Идентификаторы безналичной оплаты",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 256,
+					"required": true,
+					"tag": 1237
+				},
+				{
+					"name": "additionalDetails",
+					"titleRu": "Дополнительные сведения о безналичной оплате",
+					"description": "Дополнительные сведения о безналичной оплате",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 256,
+					"required": false,
+					"tag": 1238
+				}
+			],
+			"output": [],
+			"preconditions": [
+				"A normal receipt is open and command 0x2D has succeeded; not valid for correction receipts."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 19
+			}
+		},
+		{
+			"name": "setReceiptDeviceDetails",
+			"aliases": [
+				"0x1F",
+				"0x1f"
+			],
+			"protocolCode": "0x1F",
+			"category": "receipts",
+			"titleRu": "Передать данные автоматического устройства расчетов для кассового чека",
+			"description": "Supply the settlement address, place and automatic device number for a receipt when those details were omitted at registration. All three input tags are required by this command.",
+			"descriptionRu": "Одна ККТ может применяться в составе нескольких автоматических устройств. Если при регистрации не указывались адрес расчетов, место расчетов или номер автомата, сведения передаются при формировании чека командой 0x1F. Таблица команды требует все три тега. Если при регистрации отсутствовало только место расчета и тег 1187 передан в данных оплаты, выполнять 0x1F не требуется.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "settlementAddress",
+					"titleRu": "Адрес расчетов",
+					"description": "Адрес расчетов",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true,
+					"tag": 1009
+				},
+				{
+					"name": "settlementPlace",
+					"titleRu": "Место расчетов",
+					"description": "Место расчетов",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true,
+					"tag": 1187
+				},
+				{
+					"name": "automaticDeviceNumber",
+					"titleRu": "Номер автомата",
+					"description": "Номер автомата",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true,
+					"tag": 1036
+				}
+			],
+			"output": [],
+			"preconditions": [
+				"A normal receipt is open; apply the registration-dependent requirements in the manual."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 19
+			}
+		},
+		{
+			"name": "getShiftParameters",
+			"aliases": [
+				"0x20"
+			],
+			"protocolCode": "0x20",
+			"category": "shift",
+			"titleRu": "Запрос параметров текущей смены",
+			"description": "Read whether the shift is open, its number and the latest receipt/document number. With a closed shift the numbers describe the last closed shift.",
+			"descriptionRu": "Входные параметры: нет. Состояние смены: 0 — смена закрыта, 1 — смена открыта. Если смена закрыта, номер смены — номер последней закрытой смены, иначе номер текущей смены. Если смена закрыта, номер чека — число документов предыдущей закрытой смены (0 для первой смены). Если смена открыта и чеков еще нет, возвращается 0, иначе номер последнего сформированного чека.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "shiftState",
+					"titleRu": "Состояние смены",
+					"description": "0 closed; 1 open.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "Closed",
+						"1": "Open"
+					}
+				},
+				{
+					"name": "shiftNumber",
+					"titleRu": "Номер смены",
+					"description": "Current open shift, or the last closed shift when closed.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "receiptNumber",
+					"titleRu": "Номер чека",
+					"description": "Last receipt/document number, with the zero and closed-shift rules described in the command notes.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 14
+			}
+		},
+		{
+			"name": "startOpenShift",
+			"aliases": [
+				"0x21"
+			],
+			"protocolCode": "0x21",
+			"category": "shift",
+			"titleRu": "Начать открытие смены",
+			"description": "Begin opening a shift. The optional suppressPrint byte controls whether the opening report is printed; omission means printing.",
+			"descriptionRu": "Формировать отчет без вывода на печать: 0 — отчет об открытии смены будет напечатан; 1 — отчет об открытии смены НЕ БУДЕТ напечатан. Параметр необязательный; если не передается, документ выводится на печать. Условия выполнения: ФН должен быть в фискальном режиме. Время открытия смены может на 1 час отставать от времени закрытия предыдущей смены (или времени фискализации ФН). Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "suppressPrint",
+					"titleRu": "Формировать отчет без вывода на печать",
+					"description": "Optional byte: 0 print the report; 1 suppress printing. Omission means printing and remains an omitted wire byte.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Print report",
+						"1": "Do not print report"
+					},
+					"notes": "The protocol's default on omission is printing; no byte is inserted automatically."
+				}
+			],
+			"output": [],
+			"preconditions": [
+				"The FN must be in fiscal mode.",
+				"The shift-opening time may lag the previous shift-closing or fiscalization time by at most one hour, as stated by the protocol."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 14
+			}
+		},
+		{
+			"name": "completeOpenShift",
+			"aliases": [
+				"0x22"
+			],
+			"protocolCode": "0x22",
+			"category": "shift",
+			"titleRu": "Открыть смену",
+			"description": "Complete shift opening after 0x21 and, when required, cashier details supplied with 0x2F. Returns the opened shift number and fiscal document identifiers.",
+			"descriptionRu": "Команда, завершающая процедуру открытия смены. Только после выполнения данной команды становятся возможными процедуры формирования чеков и закрытия смены. Условия выполнения: должна быть выполнена команда «Начать открытие смены», а также, если ККТ не работает в автоматическом режиме, должны быть переданы данные кассира (0x2F). Входные параметры: нет. Выходные данные: номер открытой смены UINT16 LE, номер ФД UINT32 LE, фискальный признак UINT32 LE.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "shiftNumber",
+					"titleRu": "Номер смены",
+					"description": "Number of the opened or closed shift.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Fiscal document sign.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"preconditions": [
+				"0x21 must have completed successfully.",
+				"Cashier details 0x2F are required unless the KKT operates automatically."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 15
+			}
+		},
+		{
+			"name": "beginReceipt",
+			"aliases": [
+				"0x23"
+			],
+			"protocolCode": "0x23",
+			"category": "receipts",
+			"titleRu": "Открыть кассовый чек",
+			"description": "Begin a normal receipt. The shift must be open, no other receipt may be open, and the KKT time may not exceed the shift opening time by more than 24 hours.",
+			"descriptionRu": "Смена должна быть открыта и не был начат другой чек. Дата и время не должны превосходить более чем на 24 часа дату и время открытия данной смены. Входные параметры и выходные данные отсутствуют.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"preconditions": [
+				"Shift is open; no other receipt is open; shift age is at most 24 hours."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 16
+			}
+		},
+		{
+			"name": "finalizeReceipt",
+			"aliases": [
+				"0x24"
+			],
+			"protocolCode": "0x24",
+			"category": "receipts",
+			"titleRu": "Сформировать чек",
+			"description": "Finalize a normal receipt using its calculation sign, total in kopecks and optional extra printed text. Response layouts of 10, 15 and 17 bytes are supported as documented by the firmware change log.",
+			"descriptionRu": "Команда завершает процедуру формирования чека. Должен быть открыт чек и переданы все необходимые данные. Итог чека упаковывается в 5 байт UINT40 LE. Дополнительная информация для печати необязательна, не более 512 символов. С версии 1.0.18 ответ содержит дату-время, с версии 1.0.19 — номер смены. Если передан дополнительный текст, он выводится вместо буфера форматированных строк.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "calculationSign",
+					"titleRu": "Признак расчета",
+					"description": "Признак расчета",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"1": "Приход",
+						"2": "Возврат прихода",
+						"3": "Расход",
+						"4": "Возврат расхода"
+					}
+				},
+				{
+					"name": "totalKopecks",
+					"titleRu": "Итог чека в копейках",
+					"description": "Итог чека в копейках",
+					"jsonType": "integer",
+					"wireType": "UINT40",
+					"required": true,
+					"unit": "kopecks"
+				},
+				{
+					"name": "additionalText",
+					"titleRu": "Дополнительная информация для печати на чеке",
+					"description": "Дополнительная информация для печати на чеке",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 512,
+					"required": false
+				}
+			],
+			"output": [
+				{
+					"name": "receiptNumber",
+					"titleRu": "Номер чека за смену",
+					"description": "Номер чека за смену",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Номер ФД",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Фискальный признак",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "dateTime",
+					"titleRu": "Дата-время формирования чека",
+					"description": "Дата-время формирования чека",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": false
+				},
+				{
+					"name": "shiftNumber",
+					"titleRu": "Номер смены",
+					"description": "Номер смены",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": false
+				}
+			],
+			"preconditions": [
+				"Normal receipt is open and all required item/payment data has been supplied."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 19
+			}
+		},
+		{
+			"name": "beginCorrectionReceipt",
+			"aliases": [
+				"0x25"
+			],
+			"protocolCode": "0x25",
+			"category": "correction",
+			"titleRu": "Открыть кассовый чек коррекции",
+			"description": "Begin a correction receipt. The shift must be open, no other receipt may be open, and the KKT time may not exceed the shift opening time by more than 24 hours.",
+			"descriptionRu": "Смена должна быть открыта и не был начат другой чек. Дата и время не должны превосходить более чем на 24 часа дату и время открытия данной смены. Входные параметры и выходные данные отсутствуют.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"preconditions": [
+				"Shift is open; no other receipt is open; shift age is at most 24 hours."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 20
+			}
+		},
+		{
+			"name": "finalizeCorrectionReceipt",
+			"aliases": [
+				"0x26"
+			],
+			"protocolCode": "0x26",
+			"category": "correction",
+			"titleRu": "Сформировать чек коррекции",
+			"description": "Finalize a correction receipt. Default encoding follows firmware 1.0.18 and newer: calculation sign followed directly by a VLN total. Supply legacyVatRate only when explicitly targeting older firmware.",
+			"descriptionRu": "Команда завершает процедуру формирования чека коррекции после открытия и передачи данных коррекции. Начиная с версии конфигурации 1.0.18 параметр ставки НДС в команде 0x26 не передается; все данные о суммах НДС передаются командой 0x2E. Для старых версий ставка НДС передается между признаком расчета и суммой.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "calculationSign",
+					"titleRu": "Признак расчета",
+					"description": "Признак расчета",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"1": "Приход",
+						"2": "Возврат прихода",
+						"3": "Расход",
+						"4": "Возврат расхода"
+					}
+				},
+				{
+					"name": "totalKopecks",
+					"titleRu": "Сумма коррекции в копейках",
+					"description": "Сумма коррекции в копейках",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"unit": "kopecks"
+				},
+				{
+					"name": "legacyVatRate",
+					"titleRu": "Ставка НДС для конфигураций до 1.0.18",
+					"description": "Ставка НДС для конфигураций до 1.0.18",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"min": 1,
+					"max": 6,
+					"notes": "Only supply for firmware older than 1.0.18. Omit for current firmware."
+				}
+			],
+			"output": [
+				{
+					"name": "receiptNumber",
+					"titleRu": "Номер чека за смену",
+					"description": "Номер чека за смену",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Номер ФД",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Фискальный признак",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"notes": [
+				"legacyVatRate is an explicit compatibility option for firmware before 1.0.18; the driver does not guess firmware versions. When present it is inserted on the wire between calculationSign and totalKopecks."
+			],
+			"preconditions": [
+				"Correction receipt is open and command 0x2E has succeeded."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 21
+			}
+		},
+		{
+			"name": "beginSettlementReport",
+			"aliases": [
+				"0x27"
+			],
+			"protocolCode": "0x27",
+			"category": "reports",
+			"titleRu": "Начать формирование отчета о состоянии расчетов",
+			"description": "Begin a fiscal report on the settlement state. The fiscal storage must be in fiscal or post-fiscal mode.",
+			"descriptionRu": "Команда начинает процедуру формирования фискального документа «Отчет о состоянии расчетов». ФН должен быть в состоянии «Фискальный режим» или «Постфискальный режим». Входные параметры и выходные данные отсутствуют.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"preconditions": [
+				"Fiscal storage is in fiscal or post-fiscal mode."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 22
+			}
+		},
+		{
+			"name": "finalizeSettlementReport",
+			"aliases": [
+				"0x28"
+			],
+			"protocolCode": "0x28",
+			"category": "reports",
+			"titleRu": "Сформировать отчет о состоянии расчетов",
+			"description": "Complete the previously started settlement-state report and return its fiscal identifiers and unconfirmed-document information.",
+			"descriptionRu": "Команда завершает процедуру формирования отчета о состоянии расчетов. Предварительно должна быть выполнена команда «Начать формирование отчета о состоянии расчетов». Ответ содержит номер ФД, фискальный признак, количество неподтвержденных документов UINT32 LE и дату первого неподтвержденного документа YMD.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Номер ФД",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Фискальный признак",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "unconfirmedCount",
+					"titleRu": "Количество неподтвержденных документов",
+					"description": "Количество неподтвержденных документов",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "firstUnconfirmedDate",
+					"titleRu": "Дата первого неподтвержденного документа",
+					"description": "Date of the first unconfirmed document; null when all date bytes are zero.",
+					"jsonType": "string",
+					"wireType": "DATETIME3",
+					"required": true,
+					"allowZeroDate": true
+				}
+			],
+			"preconditions": [
+				"Command 0x27 has succeeded."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 22
+			}
+		},
+		{
+			"name": "startCloseShift",
+			"aliases": [
+				"0x29"
+			],
+			"protocolCode": "0x29",
+			"category": "shift",
+			"titleRu": "Начать закрытие смены",
+			"description": "Begin closing the shift. The optional suppressPrint byte controls printing of the closing report; omission means printing.",
+			"descriptionRu": "Формировать отчет без вывода на печать: 0 — отчет о закрытии смены будет напечатан; 1 — отчет о закрытии смены НЕ БУДЕТ напечатан. Параметр необязательный; если не передается, документ выводится на печать. Условия выполнения в руководстве: ФН должен быть в фискальном режиме; время открытия смены может на 1 час отставать от времени закрытия предыдущей смены (или времени фискализации ФН). Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "suppressPrint",
+					"titleRu": "Формировать отчет без вывода на печать",
+					"description": "Optional byte: 0 print the report; 1 suppress printing. Omission means printing and remains an omitted wire byte.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Print report",
+						"1": "Do not print report"
+					},
+					"notes": "The protocol's default on omission is printing; no byte is inserted automatically."
+				}
+			],
+			"output": [],
+			"preconditions": [
+				"The FN must be in fiscal mode; see the manual's additional time-condition wording on page 15."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 15
+			}
+		},
+		{
+			"name": "completeCloseShift",
+			"aliases": [
+				"0x2A",
+				"0x2a"
+			],
+			"protocolCode": "0x2A",
+			"category": "shift",
+			"titleRu": "Закрыть смену",
+			"description": "Complete shift closing after 0x29 and any required cashier details. Returns the closed shift number and fiscal document identifiers.",
+			"descriptionRu": "Команда завершает процедуру закрытия смены. Условия выполнения: должна быть выполнена команда «Начать закрытие смены», а также, если ККТ не работает в автоматическом режиме, должны быть переданы данные кассира (0x2F). Входные параметры: нет. Выходные данные: номер закрытой смены UINT16 LE, номер ФД UINT32 LE, фискальный признак UINT32 LE.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "shiftNumber",
+					"titleRu": "Номер смены",
+					"description": "Number of the opened or closed shift.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Fiscal document sign.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"preconditions": [
+				"0x29 must have completed successfully.",
+				"Cashier details 0x2F are required unless the KKT operates automatically."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 15
+			}
+		},
+		{
+			"name": "addReceiptItem",
+			"aliases": [
+				"0x2B",
+				"0x2b"
+			],
+			"protocolCode": "0x2B",
+			"category": "receipts",
+			"titleRu": "Передать данные предмета расчета",
+			"description": "Supply one receipt item as STLV tag 1059. The price is in integer kopecks and quantity is an exact decimal string. VAT values include the additions in appendix 10, including 22% and calculated 22/122.",
+			"descriptionRu": "Для передачи предметов расчета необходимо предварительное успешное открытие кассового чека. Каждый предмет расчета передается отдельной командой 0x2B. Предмет расчета — STLV 1059, содержащий перечисленные TLV. Если пользователь не является агентом, тег 1222 можно не передавать либо передать равным нулю, остальные данные агента и поставщика не передаются. При одинаковых данных агента по всем предметам они могут передаваться отдельно командой 0x2C. Код товарной номенклатуры передается строковым HEX-представлением, за его формирование отвечает ПО верхнего уровня. Для признаков предмета расчета 15 и 16 наименование выбирается из приложения 7. Ставки НДС дополнены приложением 10: значения 1–12.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "item",
+					"titleRu": "Предмет расчета",
+					"description": "Receipt item containing nested TLV fields.",
+					"jsonType": "object",
+					"wireType": "STLV",
+					"required": true,
+					"tag": 1059,
+					"children": [
+						{
+							"name": "name",
+							"titleRu": "Наименование предмета расчета",
+							"description": "Наименование предмета расчета",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 128,
+							"required": true,
+							"tag": 1030
+						},
+						{
+							"name": "priceKopecks",
+							"titleRu": "Цена за единицу с учетом скидок и наценок",
+							"description": "Цена за единицу с учетом скидок и наценок",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": true,
+							"tag": 1079,
+							"unit": "kopecks"
+						},
+						{
+							"name": "quantity",
+							"titleRu": "Количество предмета расчета",
+							"description": "Количество предмета расчета",
+							"jsonType": "string",
+							"wireType": "FVLN",
+							"required": true,
+							"tag": 1023,
+							"notes": "Exact non-negative decimal string; never a floating-point JSON number."
+						},
+						{
+							"name": "vatRate",
+							"titleRu": "Ставка НДС",
+							"description": "Ставка НДС",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"tag": 1199,
+							"enum": {
+								"1": "НДС 20%",
+								"10": "НДС расч. 7/107",
+								"11": "НДС 22%",
+								"12": "НДС расч. 22/122",
+								"2": "НДС 10%",
+								"3": "НДС расч. 20/120",
+								"4": "НДС расч. 10/110",
+								"5": "НДС 0%",
+								"6": "Без НДС",
+								"7": "НДС 5%",
+								"8": "НДС 7%",
+								"9": "НДС расч. 5/105"
+							}
+						},
+						{
+							"name": "paymentMethod",
+							"titleRu": "Признак способа расчета",
+							"description": "Признак способа расчета",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"tag": 1214,
+							"min": 1,
+							"max": 7
+						},
+						{
+							"name": "paymentObject",
+							"titleRu": "Признак предмета расчета",
+							"description": "Признак предмета расчета",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": false,
+							"tag": 1212,
+							"min": 1,
+							"max": 19
+						},
+						{
+							"name": "agentSign",
+							"titleRu": "Признак агента по предмету расчета",
+							"description": "Признак агента по предмету расчета",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": false,
+							"tag": 1222,
+							"enum": {
+								"0": "Не является агентом",
+								"1": "Банковский платежный агент",
+								"16": "Поверенный",
+								"2": "Банковский платежный субагент",
+								"32": "Комиссионер",
+								"4": "Платежный агент",
+								"64": "Агент",
+								"8": "Платежный субагент"
+							}
+						},
+						{
+							"name": "transferOperatorPhones",
+							"titleRu": "Телефон оператора перевода",
+							"description": "Телефон оператора перевода",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1075,
+							"repeated": true,
+							"minItems": 1,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "transferOperation",
+							"titleRu": "Операция платежного агента",
+							"description": "Операция платежного агента",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 63,
+							"required": false,
+							"tag": 1044,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "paymentAgentPhones",
+							"titleRu": "Телефон платежного агента",
+							"description": "Телефон платежного агента",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1073,
+							"repeated": true,
+							"minItems": 1,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "paymentAcceptancePhones",
+							"titleRu": "Телефон оператора по приему платежей",
+							"description": "Телефон оператора по приему платежей",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1074,
+							"repeated": true,
+							"minItems": 1,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "transferOperatorName",
+							"titleRu": "Наименование оператора перевода",
+							"description": "Наименование оператора перевода",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 127,
+							"required": false,
+							"tag": 1026,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "transferOperatorAddress",
+							"titleRu": "Адрес оператора перевода",
+							"description": "Адрес оператора перевода",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 164,
+							"required": false,
+							"tag": 1005,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "transferOperatorINNs",
+							"titleRu": "ИНН оператора перевода",
+							"description": "ИНН оператора перевода",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 12,
+							"required": false,
+							"tag": 1016,
+							"repeated": true,
+							"minItems": 1,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "supplierPhones",
+							"titleRu": "Телефон поставщика",
+							"description": "Телефон поставщика",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1171,
+							"repeated": true,
+							"minItems": 1,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "supplierName",
+							"titleRu": "Наименование поставщика",
+							"description": "Наименование поставщика",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 64,
+							"required": false,
+							"tag": 1225,
+							"requiredIf": "agentSign selects a role requiring this field, unless identical agent data will be supplied by command 0x2C"
+						},
+						{
+							"name": "supplierINN",
+							"titleRu": "ИНН поставщика",
+							"description": "ИНН поставщика",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"fixedLength": 12,
+							"maxLength": 12,
+							"required": false,
+							"tag": 1226,
+							"padding": "space"
+						},
+						{
+							"name": "nomenclatureCode",
+							"titleRu": "Код товарной номенклатуры",
+							"description": "Код товарной номенклатуры",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"required": false,
+							"tag": 1162,
+							"notes": "ASCII HEX representation, for example 05AB1208; this is not a raw-byte parameter."
+						},
+						{
+							"name": "unit",
+							"titleRu": "Единица измерения предмета расчета",
+							"description": "Единица измерения предмета расчета",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 16,
+							"required": false,
+							"tag": 1197
+						},
+						{
+							"name": "exciseKopecks",
+							"titleRu": "Акциз",
+							"description": "Акциз",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": false,
+							"tag": 1229,
+							"unit": "kopecks"
+						},
+						{
+							"name": "customsDeclaration",
+							"titleRu": "Номер таможенной декларации",
+							"description": "Номер таможенной декларации",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 32,
+							"required": false,
+							"tag": 1231
+						},
+						{
+							"name": "countryCode",
+							"titleRu": "Код страны",
+							"description": "Код страны",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 3,
+							"required": false,
+							"tag": 1230
+						},
+						{
+							"name": "additionalItemProperty",
+							"titleRu": "Дополнительный реквизит предмета расчета",
+							"description": "Дополнительный реквизит предмета расчета",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 64,
+							"required": false,
+							"tag": 1191
+						}
+					]
+				}
+			],
+			"output": [],
+			"preconditions": [
+				"Normal receipt is open; exactly one item is supplied per command."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 16
+			}
+		},
+		{
+			"name": "setReceiptAgentData",
+			"aliases": [
+				"0x2C",
+				"0x2c"
+			],
+			"protocolCode": "0x2C",
+			"category": "receipts",
+			"titleRu": "Передать данные платежного агента",
+			"description": "Supply shared payment-agent details for a receipt. agentSign selects one registered agent role or zero; when zero, no other agent fields may be supplied.",
+			"descriptionRu": "Команда выполняется только для ККТ, зарегистрированной с признаком платежного агента, после открытия кассового чека. Тег 1057 может принимать одно из значений, указанных при регистрации, либо 0, если пользователь в данном чеке не выступает агентом; при 0 остальные данные не передаются. Если данные агента и поставщика уже переданы по предметам расчета, выполнять 0x2C не нужно. Обязательность остальных полей зависит от типа агента по таблице документации.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "agentSign",
+					"titleRu": "Признак платежного агента",
+					"description": "Признак платежного агента",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 1057,
+					"enum": {
+						"0": "Не является агентом",
+						"1": "Банковский платежный агент",
+						"16": "Поверенный",
+						"2": "Банковский платежный субагент",
+						"32": "Комиссионер",
+						"4": "Платежный агент",
+						"64": "Агент",
+						"8": "Платежный субагент"
+					}
+				},
+				{
+					"name": "paymentAgentPhone",
+					"titleRu": "Телефон платежного агента",
+					"description": "Телефон платежного агента",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 20,
+					"required": false,
+					"tag": 1073,
+					"requiredIf": "agentSign selects one of the roles specified for this field in the manual"
+				},
+				{
+					"name": "transferOperation",
+					"titleRu": "Операция платежного агента",
+					"description": "Операция платежного агента",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 32,
+					"required": false,
+					"tag": 1044,
+					"requiredIf": "agentSign selects one of the roles specified for this field in the manual"
+				},
+				{
+					"name": "paymentAcceptancePhone",
+					"titleRu": "Телефон оператора приема платежей",
+					"description": "Телефон оператора приема платежей",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 20,
+					"required": false,
+					"tag": 1074,
+					"requiredIf": "agentSign selects one of the roles specified for this field in the manual"
+				},
+				{
+					"name": "transferOperatorName",
+					"titleRu": "Наименование оператора перевода",
+					"description": "Наименование оператора перевода",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 47,
+					"required": false,
+					"tag": 1026,
+					"requiredIf": "agentSign selects one of the roles specified for this field in the manual"
+				},
+				{
+					"name": "transferOperatorINN",
+					"titleRu": "ИНН оператора перевода",
+					"description": "ИНН оператора перевода",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 12,
+					"required": false,
+					"tag": 1016,
+					"requiredIf": "agentSign selects one of the roles specified for this field in the manual"
+				},
+				{
+					"name": "transferOperatorAddress",
+					"titleRu": "Адрес оператора перевода",
+					"description": "Адрес оператора перевода",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 95,
+					"required": false,
+					"tag": 1005,
+					"requiredIf": "agentSign selects one of the roles specified for this field in the manual"
+				},
+				{
+					"name": "transferOperatorPhone",
+					"titleRu": "Телефон оператора перевода",
+					"description": "Телефон оператора перевода",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 20,
+					"required": false,
+					"tag": 1075,
+					"requiredIf": "agentSign selects one of the roles specified for this field in the manual"
+				},
+				{
+					"name": "supplierPhone",
+					"titleRu": "Телефон поставщика",
+					"description": "Телефон поставщика",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 20,
+					"required": false,
+					"tag": 1171,
+					"requiredIf": "agentSign selects one of the roles specified for this field in the manual"
+				}
+			],
+			"output": [],
+			"preconditions": [
+				"Normal receipt is open; KKT registration permits the selected agent role; item-specific agent data has not already been supplied."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 18
+			}
+		},
+		{
+			"name": "setReceiptPayment",
+			"aliases": [
+				"0x2D",
+				"0x2d"
+			],
+			"protocolCode": "0x2D",
+			"category": "receipts",
+			"titleRu": "Передать данные оплаты",
+			"description": "Supply taxation, explicit totals for all payment methods, and optional cashier/customer attributes. Amounts are in integer kopecks. internetPayment=1 requires settlementPlace and customerContact.",
+			"descriptionRu": "Для передачи данных оплаты необходимо предварительное успешное открытие кассового чека. Применяемая система налогообложения должна быть одним из значений, указанных при регистрации. Суммы наличными, безналичными, предоплатой, постоплатой и встречным предоставлением передаются в копейках. Данные кассира в автоматическом режиме могут не указываться. При признаке расчета в сети интернет 1125=1 обязательны место расчета 1187 с адресом сайта и контакт покупателя 1008. Если при регистрации отсутствовало только место расчета и оно передано в чеке, выполнять 0x1F не требуется.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "taxSystem",
+					"titleRu": "Применяемая система налогообложения",
+					"description": "Применяемая система налогообложения",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 1055,
+					"enum": {
+						"1": "Общая",
+						"16": "ЕСХН",
+						"2": "УСН доход",
+						"32": "Патент",
+						"4": "УСН доход минус расход",
+						"8": "ЕНВД"
+					}
+				},
+				{
+					"name": "cashKopecks",
+					"titleRu": "Наличными",
+					"description": "Наличными",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1031,
+					"unit": "kopecks"
+				},
+				{
+					"name": "cashlessKopecks",
+					"titleRu": "Безналичными",
+					"description": "Безналичными",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1081,
+					"unit": "kopecks"
+				},
+				{
+					"name": "prepaymentKopecks",
+					"titleRu": "Предоплатой (зачетом аванса)",
+					"description": "Предоплатой (зачетом аванса)",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1215,
+					"unit": "kopecks"
+				},
+				{
+					"name": "creditKopecks",
+					"titleRu": "Постоплатой (в кредит)",
+					"description": "Постоплатой (в кредит)",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1216,
+					"unit": "kopecks"
+				},
+				{
+					"name": "counterProvisionKopecks",
+					"titleRu": "Встречным предоставлением",
+					"description": "Встречным предоставлением",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1217,
+					"unit": "kopecks"
+				},
+				{
+					"name": "cashierName",
+					"titleRu": "ФИО кассира",
+					"description": "ФИО кассира",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 64,
+					"required": false,
+					"tag": 1021
+				},
+				{
+					"name": "cashierINN",
+					"titleRu": "ИНН кассира",
+					"description": "ИНН кассира",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"maxLength": 12,
+					"required": false,
+					"tag": 1203,
+					"requiredIf": "cashier has an INN; cashier data may be omitted in automatic mode"
+				},
+				{
+					"name": "customerContact",
+					"titleRu": "Адрес электронной почты клиента",
+					"description": "Адрес электронной почты клиента",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 64,
+					"required": false,
+					"tag": 1008
+				},
+				{
+					"name": "customerINN",
+					"titleRu": "ИНН покупателя",
+					"description": "ИНН покупателя",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 12,
+					"required": false,
+					"tag": 1228
+				},
+				{
+					"name": "customerName",
+					"titleRu": "Покупатель",
+					"description": "Покупатель",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 256,
+					"required": false,
+					"tag": 1227
+				},
+				{
+					"name": "additionalReceiptProperty",
+					"titleRu": "Дополнительный реквизит кассового чека",
+					"description": "Дополнительный реквизит кассового чека",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 16,
+					"required": false,
+					"tag": 1192
+				},
+				{
+					"name": "userPropertyName",
+					"titleRu": "Наименование дополнительного реквизита пользователя",
+					"description": "Наименование дополнительного реквизита пользователя",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 64,
+					"required": false,
+					"tag": 1085
+				},
+				{
+					"name": "userPropertyValue",
+					"titleRu": "Значение дополнительного реквизита пользователя",
+					"description": "Значение дополнительного реквизита пользователя",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 256,
+					"required": false,
+					"tag": 1086
+				},
+				{
+					"name": "internetPayment",
+					"titleRu": "Признак расчета в сети интернет",
+					"description": "Признак расчета в сети интернет",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"tag": 1125,
+					"enum": {
+						"0": "Признак расчета в сети интернет не установлен",
+						"1": "Расчет в сети интернет"
+					}
+				},
+				{
+					"name": "settlementPlace",
+					"titleRu": "Место расчета",
+					"description": "Место расчета",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 256,
+					"required": false,
+					"tag": 1187,
+					"requiredIf": "internetPayment equals 1"
+				}
+			],
+			"output": [],
+			"preconditions": [
+				"Normal receipt is open; selected taxation system was enabled during registration."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 18
+			}
+		},
+		{
+			"name": "setCorrectionData",
+			"aliases": [
+				"0x2E",
+				"0x2e"
+			],
+			"protocolCode": "0x2E",
+			"category": "correction",
+			"titleRu": "Передать данные чека коррекции",
+			"description": "Supply correction data, exact payment amounts and VAT calculation bases, including appendix-10 tags 40007–40012. Payment and VAT-base totals must agree. The nested basis document number uses tag 1023 as printed in this manual.",
+			"descriptionRu": "Для передачи данных коррекции необходимо предварительное успешное открытие чека коррекции. Применяемая система налогообложения должна быть одним из значений, указанных при регистрации. Сумма по всем типам оплаты должна равняться сумме всех баз расчета НДС. Основание коррекции — STLV 1174 с наименованием, датой и номером документа; таблица указывает тег 1023 для номера. Дата основания передается UNIXTIME с указанием даты. При 1125=1 обязательны теги 1187 и 1008. Приложение 10 добавляет необязательные VLN-теги 40007–40012 для ставок 5%, 7%, 22% и расчетных ставок. Если применены только новые ставки, ККТ автоматически включает тег 1104 со значением 0.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "authorizedPersonName",
+					"titleRu": "ФИО уполномоченного лица",
+					"description": "ФИО уполномоченного лица",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 63,
+					"required": true,
+					"tag": 1021
+				},
+				{
+					"name": "authorizedPersonINN",
+					"titleRu": "ИНН уполномоченного лица",
+					"description": "ИНН уполномоченного лица",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"maxLength": 12,
+					"required": true,
+					"tag": 1203
+				},
+				{
+					"name": "correctionType",
+					"titleRu": "Тип коррекции",
+					"description": "Тип коррекции",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 1173,
+					"enum": {
+						"0": "Самостоятельно",
+						"1": "По предписанию"
+					}
+				},
+				{
+					"name": "taxSystem",
+					"titleRu": "Применяемая система налогообложения",
+					"description": "Применяемая система налогообложения",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 1055,
+					"enum": {
+						"1": "Общая",
+						"16": "ЕСХН",
+						"2": "УСН доход",
+						"32": "Патент",
+						"4": "УСН доход минус расход",
+						"8": "ЕНВД"
+					}
+				},
+				{
+					"name": "cashKopecks",
+					"titleRu": "Наличными",
+					"description": "Наличными",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1031,
+					"unit": "kopecks"
+				},
+				{
+					"name": "cashlessKopecks",
+					"titleRu": "Безналичными",
+					"description": "Безналичными",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1081,
+					"unit": "kopecks"
+				},
+				{
+					"name": "prepaymentKopecks",
+					"titleRu": "Предоплатой (зачетом аванса)",
+					"description": "Предоплатой (зачетом аванса)",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1215,
+					"unit": "kopecks"
+				},
+				{
+					"name": "creditKopecks",
+					"titleRu": "Постоплатой (в кредит)",
+					"description": "Постоплатой (в кредит)",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1216,
+					"unit": "kopecks"
+				},
+				{
+					"name": "counterProvisionKopecks",
+					"titleRu": "Встречным предоставлением",
+					"description": "Встречным предоставлением",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"tag": 1217,
+					"unit": "kopecks"
+				},
+				{
+					"name": "vat18BaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по ставке 18%",
+					"description": "Сумма, от которой считается НДС по ставке 18%",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 1102,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat10BaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по ставке 10%",
+					"description": "Сумма, от которой считается НДС по ставке 10%",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 1103,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat0BaseKopecks",
+					"titleRu": "Сумма расчета с НДС 0%",
+					"description": "Сумма расчета с НДС 0%",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 1104,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "noVatBaseKopecks",
+					"titleRu": "Сумма расчета без НДС",
+					"description": "Сумма расчета без НДС",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 1105,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat18CalculatedBaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по расчетной ставке 18/118",
+					"description": "Сумма, от которой считается НДС по расчетной ставке 18/118",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 1106,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat10CalculatedBaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по расчетной ставке 10/110",
+					"description": "Сумма, от которой считается НДС по расчетной ставке 10/110",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 1107,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat5BaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по ставке 5%",
+					"description": "Сумма, от которой считается НДС по ставке 5%",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 40007,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat7BaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по ставке 7%",
+					"description": "Сумма, от которой считается НДС по ставке 7%",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 40008,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat5CalculatedBaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по расчетной ставке 5/105",
+					"description": "Сумма, от которой считается НДС по расчетной ставке 5/105",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 40009,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat7CalculatedBaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по расчетной ставке 7/107",
+					"description": "Сумма, от которой считается НДС по расчетной ставке 7/107",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 40010,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat22BaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по ставке 22%",
+					"description": "Сумма, от которой считается НДС по ставке 22%",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 40011,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "vat22CalculatedBaseKopecks",
+					"titleRu": "Сумма, от которой считается НДС по расчетной ставке 22/122",
+					"description": "Сумма, от которой считается НДС по расчетной ставке 22/122",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": false,
+					"tag": 40012,
+					"unit": "kopecks",
+					"requiredIf": "at least one VAT-base field must be supplied; the sum of supplied bases must equal total payments"
+				},
+				{
+					"name": "basis",
+					"titleRu": "Основание для коррекции",
+					"description": "Correction basis document, encoded as STLV 1174.",
+					"jsonType": "object",
+					"wireType": "STLV",
+					"required": true,
+					"tag": 1174,
+					"children": [
+						{
+							"name": "name",
+							"titleRu": "Наименование документа основания",
+							"description": "Наименование документа основания",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 255,
+							"required": true,
+							"tag": 1177
+						},
+						{
+							"name": "date",
+							"titleRu": "Дата документа основания",
+							"description": "Date-only Unix timestamp, supplied by the caller without an implicit timezone conversion.",
+							"jsonType": "integer",
+							"wireType": "UNIXTIME",
+							"required": true,
+							"tag": 1178,
+							"notes": "The manual requires a date without minutes and seconds; the caller supplies its intended date in UnixTime form."
+						},
+						{
+							"name": "number",
+							"titleRu": "Номер документа основания",
+							"description": "Номер документа основания",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 32,
+							"required": true,
+							"tag": 1023
+						}
+					]
+				},
+				{
+					"name": "internetPayment",
+					"titleRu": "Признак расчета в сети интернет",
+					"description": "Признак расчета в сети интернет",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"tag": 1125,
+					"enum": {
+						"0": "Признак расчета в сети интернет не установлен",
+						"1": "Расчет в сети интернет"
+					}
+				},
+				{
+					"name": "settlementPlace",
+					"titleRu": "Место расчета",
+					"description": "Место расчета",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 256,
+					"required": false,
+					"tag": 1187,
+					"requiredIf": "internetPayment equals 1"
+				},
+				{
+					"name": "customerContact",
+					"titleRu": "Адрес электронной почты или телефон покупателя",
+					"description": "Адрес электронной почты или телефон покупателя",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 64,
+					"required": false,
+					"tag": 1008
+				}
+			],
+			"output": [],
+			"notes": [
+				"Tag 1023 for the correction basis document number follows the supplied protocol literally. Confirm firmware-specific differences with the manufacturer.",
+				"Original VAT-base tags 1102 and 1106 retain their documented historic meanings; the API does not reinterpret fiscal legislation."
+			],
+			"preconditions": [
+				"Correction receipt is open; selected taxation system was enabled during registration."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 20
+			}
+		},
+		{
+			"name": "sendCashierData",
+			"aliases": [
+				"0x2F",
+				"0x2f"
+			],
+			"protocolCode": "0x2F",
+			"category": "shift",
+			"titleRu": "Передать данные кассира",
+			"description": "Supply cashier name and optional twelve-digit INN. This command is optional during shift opening/closing for automatic self-service KKT operation.",
+			"descriptionRu": "Входные параметры — TLV: ФИО кассира (тэг 1021, ASCII, не более 64 символов); ИНН кассира (тэг 1203, ASCII), параметр необязательный, если передается — строго 12 символов. Выходные данные: нет. Для ККТ в составе автоматических устройств самообслуживания выполнение данной команды в процессе открытия-закрытия смены необязательно.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "cashierName",
+					"titleRu": "ФИО Кассира",
+					"description": "Cashier's full name, at most 64 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": true,
+					"tag": 1021
+				},
+				{
+					"name": "cashierInn",
+					"titleRu": "ИНН Кассира",
+					"description": "Optional cashier INN; if present, exactly twelve decimal digits.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": false,
+					"tag": 1203
+				}
+			],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 14
+			}
+		},
+		{
+			"name": "findFiscalDocument",
+			"aliases": [
+				"0x30"
+			],
+			"protocolCode": "0x30",
+			"category": "archive",
+			"titleRu": "Найти фискальный документ по номеру",
+			"description": "Read one archived fiscal document by number. The document payload is preserved as hexadecimal because its structure depends on the returned document type.",
+			"descriptionRu": "Команда позволяет найти в Архиве ФН фискальный документ по его номеру. Документ выдается в ответном сообщении. Формат структуры данных зависит от типа документа и описан в приложении 5.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер фискального документа",
+					"description": "Fiscal document number in the fiscal storage archive.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true,
+					"min": 1
+				}
+			],
+			"output": [
+				{
+					"name": "documentType",
+					"titleRu": "Тип документа",
+					"description": "Document type from Appendix 5; retained without assuming the distinct TLV form-code dictionary.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				},
+				{
+					"name": "ofdAcknowledged",
+					"titleRu": "Получена ли квитанция из ОФД",
+					"description": "1 if an OFD receipt exists, otherwise 0.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "No",
+						"1": "Yes"
+					}
+				},
+				{
+					"name": "documentData",
+					"titleRu": "Данные фискального документа",
+					"description": "Exact archived document bytes as hexadecimal; Appendix 5 defines type-specific field layouts.",
+					"jsonType": "string",
+					"wireType": "RAW",
+					"required": true
+				}
+			],
+			"notes": [
+				"Archive document payloads retain their exact bytes. The TLV form codes in Appendix 6 are a separate dictionary and are not assumed to identify the byte returned by this command."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 23
+			}
+		},
+		{
+			"name": "printOfdAcknowledgement",
+			"aliases": [
+				"0x31"
+			],
+			"protocolCode": "0x31",
+			"category": "archive",
+			"titleRu": "Печать Подтверждения Оператора по номеру ФД",
+			"description": "Print the operator acknowledgement for an archived fiscal document, if present. The response includes its date/time, 18-byte fiscal sign, and document number.",
+			"descriptionRu": "Команда позволяет напечатать документ «Подтверждение оператора» в случае наличия данного подтверждения.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер фискального документа",
+					"description": "Fiscal document number in the fiscal storage archive.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true,
+					"min": 1
+				}
+			],
+			"output": [
+				{
+					"name": "acknowledgedAt",
+					"titleRu": "Дата и время подтверждения",
+					"description": "OFD acknowledgement date and time.",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": true
+				},
+				{
+					"name": "ofdFiscalSign",
+					"titleRu": "Фискальный признак оператора",
+					"description": "Exact 18-byte operator fiscal sign as hexadecimal.",
+					"jsonType": "string",
+					"wireType": "HEX",
+					"fixedLength": 18,
+					"required": true
+				},
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Acknowledged fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 23
+			}
+		},
+		{
+			"name": "getUnconfirmedDocumentCount",
+			"aliases": [
+				"0x32"
+			],
+			"protocolCode": "0x32",
+			"category": "archive",
+			"titleRu": "Запрос количества ФД без подтверждения ОФД",
+			"description": "Read the number of fiscal documents not yet acknowledged by the OFD.",
+			"descriptionRu": "Запрос количества фискальных документов без подтверждения ОФД. Входные параметры: нет. Выходные данные: количество неподтвержденных ФД, UINT16 LE.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "count",
+					"titleRu": "Количество неподтвержденных ФД",
+					"description": "Number of unacknowledged fiscal documents.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 23
+			}
+		},
+		{
+			"name": "getActivationTotals",
+			"aliases": [
+				"0x33"
+			],
+			"protocolCode": "0x33",
+			"category": "archive",
+			"titleRu": "Запрос итогов активации ФН",
+			"description": "Read the initial or a selected registration report. The payload is 47 bytes when the optional report index is omitted and 48 bytes when supplied.",
+			"descriptionRu": "Если в команду не передается параметр «Порядковый номер отчета о регистрации», то возвращаются данные первичного отчета о регистрации ККТ. Также в выходных данных будет отсутствовать код причины перерегистрации, длина ответа равна 47 байт. Если параметр указан, возвращаются данные соответствующего отчета о регистрации или перерегистрации, длина ответа равна 48 байт.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "registrationReportNumber",
+					"titleRu": "Порядковый номер отчета о регистрации",
+					"description": "Ordinal number of the registration or re-registration report.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"notes": "If omitted, the first registration report is returned and the response has no re-registration reason byte. Omission is different from an explicit zero."
+				}
+			],
+			"output": [
+				{
+					"name": "dateTime",
+					"titleRu": "Дата и время",
+					"description": "Registration report date and time.",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": true
+				},
+				{
+					"name": "taxpayerINN",
+					"titleRu": "ИНН",
+					"description": "Taxpayer INN, padded with spaces to twelve bytes on the wire.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"fixedLength": 12,
+					"required": true,
+					"padding": "space"
+				},
+				{
+					"name": "registrationNumber",
+					"titleRu": "РН ККТ",
+					"description": "KKT registration number, padded to twenty bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"fixedLength": 20,
+					"required": true,
+					"padding": "space"
+				},
+				{
+					"name": "taxationSystems",
+					"titleRu": "Код налогообложения",
+					"description": "Registered taxation-system bitmask.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				},
+				{
+					"name": "operatingModes",
+					"titleRu": "Режим работы",
+					"description": "Registered operating-mode bitmask.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				},
+				{
+					"name": "reregistrationReason",
+					"titleRu": "Код причины перерегистрации",
+					"description": "Reason for re-registration.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"notes": "Present only in the 48-byte response; absent in the 47-byte initial-registration response."
+				},
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Fiscal document sign.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 24
+			}
+		},
+		{
+			"name": "getActivationParameter",
+			"aliases": [
+				"0x34"
+			],
+			"protocolCode": "0x34",
+			"category": "unresolved",
+			"titleRu": "Запрос параметра активации ФН по номеру тэга",
+			"description": "The command is listed, but its request and response layouts are not documented.",
+			"descriptionRu": "Команда перечислена в протоколе, но формат входных и выходных данных не определен.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": false,
+			"unavailableReason": "The command is listed, but its request and response layouts are not documented.",
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 8
+			}
+		},
+		{
+			"name": "selectFiscalDocumentTLV",
+			"aliases": [
+				"0x35"
+			],
+			"protocolCode": "0x35",
+			"category": "archive",
+			"titleRu": "Запрос фискального документа в TLV формате",
+			"description": "Select an archived fiscal document and initialize the TLV read cursor. Follow with readFiscalDocumentTLV until all advertised bytes have been consumed.",
+			"descriptionRu": "Запрос фискального документа в TLV формате. Входные параметры: номер ФД, UINT32 LE. Выходные данные: тип ФД, UINT16 LE, и длина ФД, UINT16 LE. Тип ФД соответствует коду формы документа, см. приложение 6.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер фискального документа",
+					"description": "Fiscal document number in the fiscal storage archive.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true,
+					"min": 1
+				}
+			],
+			"output": [
+				{
+					"name": "documentType",
+					"titleRu": "Тип ФД",
+					"description": "Fiscal document form code from Appendix 6.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "documentLength",
+					"titleRu": "Длина ФД",
+					"description": "Total document length in bytes.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				}
+			],
+			"notes": [
+				"This command changes the device archive cursor and requires idempotency even though it does not create a fiscal document. Select and subsequent reads must remain in one protected operation."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 23
+			}
+		},
+		{
+			"name": "readFiscalDocumentTLV",
+			"aliases": [
+				"0x36"
+			],
+			"protocolCode": "0x36",
+			"category": "archive",
+			"titleRu": "Чтение TLV фискального документа",
+			"description": "Read the next TLV structure of the previously selected fiscal document. The operation advances the device cursor; it must not be blindly repeated after a lost response.",
+			"descriptionRu": "Команда считывает очередную TLV структуру документа, предварительно запрошенного по номеру, до тех пор пока не будут считаны все данные документа. Условия выполнения: должна быть выполнена команда «Запрос фискального документа в TLV формате».",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "tlv",
+					"titleRu": "Массив TLV объектов",
+					"description": "Ordered TLV values; repeated and unknown tags are preserved as tag/valueHex objects. STLV values retain their exact nested payload bytes.",
+					"jsonType": "array",
+					"wireType": "TLV[]",
+					"required": true
+				},
+				{
+					"name": "rawHex",
+					"titleRu": "Данные ответа",
+					"description": "Exact complete TLV response bytes as hexadecimal, including all tag and length headers.",
+					"jsonType": "string",
+					"wireType": "RAW",
+					"required": true
+				}
+			],
+			"notes": [
+				"Repeating a completed requestId replays the saved response without advancing the cursor again. Use a new requestId for each intentional next chunk."
+			],
+			"preconditions": [
+				"A fiscal document must first be selected with command 0x35; read operations must preserve ownership of that document cursor."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 23
+			}
+		},
+		{
+			"name": "printFiscalDocument",
+			"aliases": [
+				"0x39"
+			],
+			"protocolCode": "0x39",
+			"category": "archive",
+			"titleRu": "Печать ФД по номеру",
+			"description": "Print a copy of an archived fiscal document by number. Any extra successful response bytes are ignored as instructed by the protocol.",
+			"descriptionRu": "Команда позволяет напечатать копию ФД по его номеру. Если от ККТ возвращаются какие-либо данные, за исключением кода ответа, их следует игнорировать.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер фискального документа",
+					"description": "Fiscal document number in the fiscal storage archive.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true,
+					"min": 1
+				}
+			],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 23
+			}
+		},
+		{
+			"name": "readFiscalDocumentTags",
+			"aliases": [
+				"0x3A",
+				"0x3a"
+			],
+			"protocolCode": "0x3A",
+			"category": "archive",
+			"titleRu": "Чтение любого фискального документа всем тэгам",
+			"description": "Read all TLV or STLV objects of a fiscal document. Tag order, repeated tags, and unrecognized values are retained.",
+			"descriptionRu": "Чтение любого фискального документа всем тэгам. Входные параметры: номер ФД, UINT32. Выходные данные: массив TLV или STLV объектов, содержащихся в документе. Размер документа не должен превышать 1024 байт.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер фискального документа",
+					"description": "Fiscal document number in the fiscal storage archive.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true,
+					"min": 1
+				}
+			],
+			"output": [
+				{
+					"name": "tlv",
+					"titleRu": "Массив TLV объектов",
+					"description": "Ordered TLV values; repeated and unknown tags are preserved as tag/valueHex objects. STLV values retain their exact nested payload bytes.",
+					"jsonType": "array",
+					"wireType": "TLV[]",
+					"required": true
+				},
+				{
+					"name": "rawHex",
+					"titleRu": "Данные ответа",
+					"description": "Exact complete TLV response bytes as hexadecimal, including all tag and length headers.",
+					"jsonType": "string",
+					"wireType": "RAW",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 14
+			}
+		},
+		{
+			"name": "readRegistrationReportTags",
+			"aliases": [
+				"0x3B",
+				"0x3b"
+			],
+			"protocolCode": "0x3B",
+			"category": "archive",
+			"titleRu": "Чтение отчета о регистрации по всем тэгам",
+			"description": "Read all TLV objects of a selected registration report. Unknown and repeated tags remain available as hexadecimal values.",
+			"descriptionRu": "Чтение отчета о регистрации по всем тэгам. Входные параметры: порядковый номер отчета о регистрации или перерегистрации, BYTE. Выходные данные: массив TLV объектов, содержащихся в отчете. Размер документа не должен превышать 1024 байт.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "registrationReportNumber",
+					"titleRu": "Порядковый номер отчета о регистрации",
+					"description": "Ordinal number of the registration or re-registration report.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				}
+			],
+			"output": [
+				{
+					"name": "tlv",
+					"titleRu": "Массив TLV объектов",
+					"description": "Ordered TLV values; repeated and unknown tags are preserved as tag/valueHex objects. STLV values retain their exact nested payload bytes.",
+					"jsonType": "array",
+					"wireType": "TLV[]",
+					"required": true
+				},
+				{
+					"name": "rawHex",
+					"titleRu": "Данные ответа",
+					"description": "Exact complete TLV response bytes as hexadecimal, including all tag and length headers.",
+					"jsonType": "string",
+					"wireType": "RAW",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 14
+			}
+		},
+		{
+			"name": "setCorrectionDeviceDetails",
+			"aliases": [
+				"0x3F",
+				"0x3f"
+			],
+			"protocolCode": "0x3F",
+			"category": "correction",
+			"titleRu": "Передать данные автоматического устройства расчетов для чека коррекции",
+			"description": "Supply settlement address/place and optional automatic device number for a correction receipt when the device was registered without those details.",
+			"descriptionRu": "Данные автоматического устройства для чека коррекции передаются командой 0x3F, если они не были указаны при регистрации ККТ. Если ККТ зарегистрирована с этими параметрами, команда возвращает ошибку 0x5F. Номер автомата необязателен, но рекомендован ФНС к указанию.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "settlementAddress",
+					"titleRu": "Адрес расчетов",
+					"description": "Адрес расчетов",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true,
+					"tag": 1009
+				},
+				{
+					"name": "settlementPlace",
+					"titleRu": "Место расчетов",
+					"description": "Место расчетов",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true,
+					"tag": 1187
+				},
+				{
+					"name": "automaticDeviceNumber",
+					"titleRu": "Номер автомата",
+					"description": "Номер автомата",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": false,
+					"tag": 1036
+				}
+			],
+			"output": [],
+			"preconditions": [
+				"Correction receipt is open; KKT was registered without the corresponding automatic-device details."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 21
+			}
+		},
+		{
+			"name": "resetTestFiscalStorage",
+			"aliases": [
+				"0x40"
+			],
+			"protocolCode": "0x40",
+			"category": "debug",
+			"titleRu": "Сброс состояния МГМ",
+			"description": "Reset only a fiscal-storage mass/dimensional simulator running debug firmware. The request contains the fixed byte 0x16. A production fiscal storage will not execute it.",
+			"descriptionRu": "Команда применяется для сброса состояния массогабаритного макета с отладочной версией прошивки. После успешного выполнения команды МГМ возвращается к фазе жизни «проведена Настройка». На рабочем ФН команда выполнена не будет. Код запроса задается жестко и должен быть равен 0x16.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"notes": [
+				"No caller-supplied reset byte is accepted; the documented fixed byte 0x16 is encoded by the driver."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 28
+			}
+		},
+		{
+			"name": "getOFDExchangeStatus",
+			"aliases": [
+				"0x50"
+			],
+			"protocolCode": "0x50",
+			"category": "diagnostics",
+			"titleRu": "Запрос статуса информационного обмена с ОФД",
+			"description": "Read OFD exchange state, pending-message count, first queued fiscal document number and its device-local date/time. Two leading status bytes are service values whose meanings are not expanded by the manual.",
+			"descriptionRu": "Запрос статуса информационного обмена с ОФД (0x50). Входные параметры: нет. Выходные данные: статус информационного обмена, BYTE, служебный параметр; состояние чтения сообщения для ОФД, BYTE, служебный параметр; количество сообщений для передачи в ОФД, UINT16 LE; номер документа для ОФД первого в очереди, UINT32 LE; дата-время документа для ОФД первого в очереди, DATETIME YMDHm (5 байт).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "exchangeStatus",
+					"titleRu": "Статус информационного обмена",
+					"description": "Service status value; the manual does not define its enumeration.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				},
+				{
+					"name": "messageReadState",
+					"titleRu": "Состояние чтения сообщения для ОФД",
+					"description": "Service message-read state; the manual does not define its enumeration.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				},
+				{
+					"name": "pendingMessages",
+					"titleRu": "Количество сообщений для передачи в ОФД",
+					"description": "Number of messages awaiting OFD transmission.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "firstDocumentNumber",
+					"titleRu": "Номер документа для ОФД первого в очереди",
+					"description": "Fiscal document number at the head of the OFD queue.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "firstDocumentDateTime",
+					"titleRu": "Дата-время документа для ОФД первого в очереди",
+					"description": "Device-local date/time of the first queued document, or null for a zero-filled date.",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": true,
+					"allowZeroDate": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 12
+			}
+		},
+		{
+			"name": "printText",
+			"aliases": [
+				"0x61"
+			],
+			"protocolCode": "0x61",
+			"category": "printer",
+			"titleRu": "Напечатать строку",
+			"description": "Print one CP866 text string with font attributes and alignment. A returned printer-status byte is reported explicitly.",
+			"descriptionRu": "Напечатать строку символов. Передаются атрибуты шрифта, выравнивание и текст. Если статус печатающего устройства корректный, возвращаемых данных нет; иначе возвращается BYTE со статусом печатающего устройства, см. приложение 4.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "fontAttributes",
+					"titleRu": "Атрибуты шрифта",
+					"description": "Printer font attribute bitmask.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"3": "Expanded mode",
+						"4": "Double height",
+						"5": "Double width",
+						"6": "Italic",
+						"7": "Underline"
+					},
+					"notes": "Bit values: 0x08 expanded, 0x10 height, 0x20 width, 0x40 italic, 0x80 underline."
+				},
+				{
+					"name": "alignment",
+					"titleRu": "Выравнивание",
+					"description": "Text alignment.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "Left",
+						"1": "Center",
+						"2": "Right"
+					}
+				},
+				{
+					"name": "text",
+					"titleRu": "Текст",
+					"description": "Text encoded as CP866 for the printer.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true
+				}
+			],
+			"output": [
+				{
+					"name": "printerStatus",
+					"titleRu": "Статус печатающего устройства",
+					"description": "Zero means the printer is ready; a nonzero status reports why the requested printer action could not be performed.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Ready",
+						"1": "Printer not connected",
+						"2": "Out of paper",
+						"3": "Paper jam",
+						"5": "Cover open",
+						"6": "Cutter error",
+						"7": "Hardware error"
+					},
+					"notes": "The status byte is optional in a successful protocol response; an empty payload denotes status zero."
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 24
+			}
+		},
+		{
+			"name": "cutPaper",
+			"aliases": [
+				"0x62"
+			],
+			"protocolCode": "0x62",
+			"category": "printer",
+			"titleRu": "Отрезать бумагу",
+			"description": "Cut paper fully or partially. Omitting partialCut requests a full cut. Partial cutting depends on printer support.",
+			"descriptionRu": "Частичный отрез: 0 — полный отрез, 1 — частичный отрез. Параметр необязательный; если не передается, выполняется полный отрез бумаги. Параметр актуален только для печатающих устройств, поддерживающих функцию частичного отреза. Возвращаемый BYTE содержит статус печатающего устройства, если печать невозможна.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "partialCut",
+					"titleRu": "Частичный отрез",
+					"description": "Optional cut mode; omission requests a full cut.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Full",
+						"1": "Partial"
+					}
+				}
+			],
+			"output": [
+				{
+					"name": "printerStatus",
+					"titleRu": "Статус печатающего устройства",
+					"description": "Zero means the printer is ready; a nonzero status reports why the requested printer action could not be performed.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Ready",
+						"1": "Printer not connected",
+						"2": "Out of paper",
+						"3": "Paper jam",
+						"5": "Cover open",
+						"6": "Cutter error",
+						"7": "Hardware error"
+					},
+					"notes": "The status byte is optional in a successful protocol response; an empty payload denotes status zero."
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 24
+			}
+		},
+		{
+			"name": "printQRCode",
+			"aliases": [
+				"0x63"
+			],
+			"protocolCode": "0x63",
+			"category": "printer",
+			"titleRu": "Печать QR-кода",
+			"description": "Print a QR code for a CP866 string containing at least six encoded characters.",
+			"descriptionRu": "Печать QR-кода. Входные параметры: строка для кодирования, ASCII, длина не менее 6 символов. Если статус печатающего устройства не позволяет выполнить печать, ответ содержит BYTE со статусом печатающего устройства.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "text",
+					"titleRu": "Строка для кодирования",
+					"description": "QR code content, at least six CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 6,
+					"required": true
+				}
+			],
+			"output": [
+				{
+					"name": "printerStatus",
+					"titleRu": "Статус печатающего устройства",
+					"description": "Zero means the printer is ready; a nonzero status reports why the requested printer action could not be performed.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Ready",
+						"1": "Printer not connected",
+						"2": "Out of paper",
+						"3": "Paper jam",
+						"5": "Cover open",
+						"6": "Cutter error",
+						"7": "Hardware error"
+					},
+					"notes": "The status byte is optional in a successful protocol response; an empty payload denotes status zero."
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 25
+			}
+		},
+		{
+			"name": "bufferFormattedText",
+			"aliases": [
+				"0x64"
+			],
+			"protocolCode": "0x64",
+			"category": "printer",
+			"titleRu": "Записать в буфер печати массив форматированных строк символов",
+			"description": "Append formatted text lines to the printer buffer. Each line is a repeated TLV tag 39999 whose value contains fontAttributes, alignment, and up to 124 CP866 text bytes.",
+			"descriptionRu": "В каждом TLV значение T одинаково и равно 39999. Длина LEN равна длине строки плюс два байта: атрибуты шрифта и выравнивание. Отдельной командой можно передавать один или несколько текстовых фрагментов, не превышая максимальный размер пакета. Максимальная длина текста одной строки — 124 байта; максимальное количество строк в буфере — 255. Последующее выполнение 0x65 печатает буфер и очищает его. Если буфер не напечатан, он выводится в специальную область кассового чека; переданный в 0x24 дополнительный текст имеет приоритет над буфером.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "lines",
+					"titleRu": "Форматированные строки",
+					"description": "One or more formatted lines; each object becomes a separate tag 39999.",
+					"jsonType": "array",
+					"wireType": "STRUCT",
+					"required": true,
+					"tag": 39999,
+					"repeated": true,
+					"minItems": 1,
+					"maxItems": 255,
+					"children": [
+						{
+							"name": "fontAttributes",
+							"titleRu": "Атрибуты шрифта",
+							"description": "Printer font attribute bitmask.",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"bits": {
+								"3": "Expanded mode",
+								"4": "Double height",
+								"5": "Double width",
+								"6": "Italic",
+								"7": "Underline"
+							},
+							"notes": "Bit values: 0x08 expanded, 0x10 height, 0x20 width, 0x40 italic, 0x80 underline."
+						},
+						{
+							"name": "alignment",
+							"titleRu": "Выравнивание",
+							"description": "Text alignment.",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"enum": {
+								"0": "Left",
+								"1": "Center",
+								"2": "Right"
+							}
+						},
+						{
+							"name": "text",
+							"titleRu": "Текст",
+							"description": "Text encoded as CP866 for the printer.",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 124,
+							"required": true
+						}
+					]
+				}
+			],
+			"output": [],
+			"notes": [
+				"The driver enforces the per-command packet bound, per-line 124-byte limit, and cumulative 255-line limit within an atomic operation. Preexisting buffer content written by another controller cannot be inferred.",
+				"The inconsistent stray byte in the printed example is not copied; encoding follows its documented tag-length-value layout."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 26
+			}
+		},
+		{
+			"name": "printTextBuffer",
+			"aliases": [
+				"0x65"
+			],
+			"protocolCode": "0x65",
+			"category": "printer",
+			"titleRu": "Печать буфера форматированных строк",
+			"description": "Print all buffered formatted lines and clear the device buffer.",
+			"descriptionRu": "Команда выводит на печатающее устройство все данные из буфера печати с заданным форматированием. После печати буфер очищается. Входные параметры: нет. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 26
+			}
+		},
+		{
+			"name": "printBarcode",
+			"aliases": [
+				"0x69"
+			],
+			"protocolCode": "0x69",
+			"category": "printer",
+			"titleRu": "Печать штрих-кода",
+			"description": "Print EAN13 or CODE128 text. EAN13 content is at most 13 CP866 bytes; CODE128 content is at most 24 bytes.",
+			"descriptionRu": "Тип штрих-кода: 0 — EAN13, 1 — CODE128. Строка для кодирования: для EAN13 не более 13 символов, для CODE128 не более 24 символов. Если статус печатающего устройства не позволяет выполнить печать, ответ содержит BYTE со статусом печатающего устройства.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "barcodeType",
+					"titleRu": "Тип штрих-кода",
+					"description": "0 for EAN13, 1 for CODE128.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "EAN13",
+						"1": "CODE128"
+					}
+				},
+				{
+					"name": "text",
+					"titleRu": "Строка для кодирования",
+					"description": "Barcode content; the maximum length depends on barcodeType.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 24,
+					"required": true,
+					"notes": "EAN13 maximum 13 bytes; CODE128 maximum 24 bytes."
+				}
+			],
+			"output": [
+				{
+					"name": "printerStatus",
+					"titleRu": "Статус печатающего устройства",
+					"description": "Zero means the printer is ready; a nonzero status reports why the requested printer action could not be performed.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Ready",
+						"1": "Printer not connected",
+						"2": "Out of paper",
+						"3": "Paper jam",
+						"5": "Cover open",
+						"6": "Cutter error",
+						"7": "Hardware error"
+					},
+					"notes": "The status byte is optional in a successful protocol response; an empty payload denotes status zero."
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 25
+			}
+		},
+		{
+			"name": "setDateTime",
+			"aliases": [
+				"0x72"
+			],
+			"protocolCode": "0x72",
+			"category": "settings",
+			"titleRu": "Установить дату/время в ККТ",
+			"description": "Set the device-local calendar date/time using TLV tag 30000 with a five-byte YMDHm value.",
+			"descriptionRu": "Установить дату/время в ККТ. Входные параметры: дата/время, TLV, TAG=30000, LEN=5, тип DATETIME(5). Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "dateTime",
+					"titleRu": "Дата и время",
+					"description": "Device-local calendar date and time, without a timezone conversion.",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": true,
+					"tag": 30000
+				}
+			],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 29
+			}
+		},
+		{
+			"name": "getDateTime",
+			"aliases": [
+				"0x73"
+			],
+			"protocolCode": "0x73",
+			"category": "settings",
+			"titleRu": "Запросить дату/время из ККТ",
+			"description": "Read the device-local calendar date/time from TLV tag 30000. No timezone or daylight-saving conversion is applied.",
+			"descriptionRu": "Запросить дату/время из ККТ. Входные параметры: нет. Выходные данные: текущие дата/время, TLV, TAG=30000, LEN=5, тип DATETIME(5).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "tlv",
+			"input": [],
+			"output": [
+				{
+					"name": "dateTime",
+					"titleRu": "Дата и время",
+					"description": "Device-local calendar date and time, without a timezone conversion.",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": true,
+					"tag": 30000
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 29
+			}
+		},
+		{
+			"name": "setNetworkSettings",
+			"aliases": [
+				"0x74"
+			],
+			"protocolCode": "0x74",
+			"category": "settings",
+			"titleRu": "Установить сетевые настройки ККТ",
+			"description": "Set the KKT network settings. All four documented fields are required; dynamic addressing is selected explicitly with 0 or 1. IPv4 addresses use textual CP866 values, not binary IPv4 bytes.",
+			"descriptionRu": "Установить сетевые настройки ККТ. Использовать динамический адрес: TLV, TAG=30001, LEN=1, BYTE, 0 — статический адрес, 1 — динамический адрес. IP-адрес: TAG=30002, маска подсети: TAG=30003, шлюз по умолчанию: TAG=30004; каждый имеет тип ASCII, длина не более 15 символов. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "dynamicAddress",
+					"titleRu": "Использовать динамический адрес",
+					"description": "0 for a static address, 1 for dynamic addressing.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30001,
+					"enum": {
+						"0": "Static",
+						"1": "Dynamic"
+					}
+				},
+				{
+					"name": "ipAddress",
+					"titleRu": "IP-адрес",
+					"description": "KKT IPv4 address in dotted-decimal text.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 15,
+					"required": true,
+					"tag": 30002
+				},
+				{
+					"name": "subnetMask",
+					"titleRu": "Маска подсети",
+					"description": "Contiguous IPv4 subnet mask in dotted-decimal text.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 15,
+					"required": true,
+					"tag": 30003
+				},
+				{
+					"name": "gateway",
+					"titleRu": "Шлюз по умолчанию",
+					"description": "Default IPv4 gateway in dotted-decimal text.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 15,
+					"required": true,
+					"tag": 30004
+				}
+			],
+			"output": [],
+			"notes": [
+				"The table does not document omitted network fields, patch semantics, or defaults. All four fields must be supplied even when dynamicAddress is 1; 0.0.0.0 is accepted as an IPv4 placeholder.",
+				"Changing KKT Ethernet settings does not update the server's configured device address or transport. On a TCP-connected device, this must be the final step of an operation because the endpoint may change."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 29
+			}
+		},
+		{
+			"name": "getNetworkSettings",
+			"aliases": [
+				"0x75"
+			],
+			"protocolCode": "0x75",
+			"category": "settings",
+			"titleRu": "Запрос сетевых настроек из ККТ",
+			"description": "Read the KKT network settings as TLVs: dynamic addressing flag, textual IPv4 address, subnet mask, and default gateway. Unknown future tags are preserved.",
+			"descriptionRu": "Запрос сетевых настроек из ККТ. Входные параметры: нет. Выходные данные: использовать динамический адрес, TAG=30001, BYTE; IP-адрес, TAG=30002; маска подсети, TAG=30003; шлюз по умолчанию, TAG=30004. Адресные поля имеют тип ASCII и длину не более 15 символов. Значение динамического адреса: 0 — статический, 1 — динамический.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "tlv",
+			"input": [],
+			"output": [
+				{
+					"name": "dynamicAddress",
+					"titleRu": "Использовать динамический адрес",
+					"description": "0 for a static address, 1 for dynamic addressing.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30001,
+					"enum": {
+						"0": "Static",
+						"1": "Dynamic"
+					}
+				},
+				{
+					"name": "ipAddress",
+					"titleRu": "IP-адрес",
+					"description": "KKT IPv4 address in dotted-decimal text.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 15,
+					"required": true,
+					"tag": 30002
+				},
+				{
+					"name": "subnetMask",
+					"titleRu": "Маска подсети",
+					"description": "Contiguous IPv4 subnet mask in dotted-decimal text.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 15,
+					"required": true,
+					"tag": 30003
+				},
+				{
+					"name": "gateway",
+					"titleRu": "Шлюз по умолчанию",
+					"description": "Default IPv4 gateway in dotted-decimal text.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 15,
+					"required": true,
+					"tag": 30004
+				}
+			],
+			"notes": [
+				"Address values are returned as stored, including empty values from an unconfigured device. IPv4 and subnet-mask semantic validation applies to setter inputs, not to reading the current state."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 29
+			}
+		},
+		{
+			"name": "setOfdSettings",
+			"aliases": [
+				"0x76"
+			],
+			"protocolCode": "0x76",
+			"category": "settings",
+			"titleRu": "Установить настройки ОФД в ККТ",
+			"description": "Set the OFD domain, optional fallback IPv4 address, TCP port, and interaction timer in seconds. The domain is required; an omitted fallback address remains absent from the wire payload.",
+			"descriptionRu": "Установить настройки ОФД в ККТ. Доменное имя ОФД: TLV, TAG=30040, ASCII, не более 128 символов, обязательный параметр. IP-адрес ОФД: TAG=30005, ASCII, не более 15 символов; его можно не указывать. TCP-порт: TAG=30006, LEN=2, UINT16 LE. Интервал таймера ОФД в секундах: TAG=30009, LEN=2, UINT16 LE, таймер потока взаимодействия с ОФД. Если IP-адрес указан, при неуспешном разрешении доменного имени обмен осуществляется по указанному IP. Адрес DNS-сервера определяется автоматически при DHCP, иначе по внутреннему списку DNS-серверов ККТ. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "domain",
+					"titleRu": "Доменное имя ОФД",
+					"description": "Required OFD domain name; at most 128 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 128,
+					"required": true,
+					"tag": 30040
+				},
+				{
+					"name": "ipAddress",
+					"titleRu": "IP-адрес ОФД",
+					"description": "Optional fallback IPv4 address used if domain resolution fails.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 15,
+					"required": false,
+					"tag": 30005
+				},
+				{
+					"name": "tcpPort",
+					"titleRu": "TCP-порт",
+					"description": "OFD connection TCP port, encoded as an unsigned 16-bit little-endian integer.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30006
+				},
+				{
+					"name": "timerSeconds",
+					"titleRu": "Интервал таймера ОФД (сек)",
+					"description": "OFD interaction timer interval in seconds; no default is imposed by the driver.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30009,
+					"unit": "seconds"
+				}
+			],
+			"output": [],
+			"notes": [
+				"Only the fallback IPv4 address is documented as optional. The driver does not invent defaults for the TCP port or timer and preserves explicit zero values within UINT16.",
+				"The fallback IPv4 address is omitted by leaving ipAddress out of params; null or an empty input address is not an omission."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 30
+			}
+		},
+		{
+			"name": "getOfdSettings",
+			"aliases": [
+				"0x77"
+			],
+			"protocolCode": "0x77",
+			"category": "settings",
+			"titleRu": "Запрос настроек ОФД из ККТ",
+			"description": "Read the OFD domain, optional fallback IPv4 address, TCP port, and interaction timer. UINT16 values are decoded little-endian, and unknown TLV tags are retained.",
+			"descriptionRu": "Запрос настроек ОФД из ККТ. Входные параметры: нет. Выходные данные: доменное имя ОФД, TAG=30040, ASCII, не более 128 символов; IP-адрес ОФД, TAG=30005, ASCII, не более 15 символов; TCP-порт, TAG=30006, LEN=2, UINT16 LE; интервал таймера ОФД в секундах, TAG=30009, LEN=2, UINT16 LE. Таблица продолжается на странице 30.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "tlv",
+			"input": [],
+			"output": [
+				{
+					"name": "domain",
+					"titleRu": "Доменное имя ОФД",
+					"description": "Configured OFD domain name; the returned value may be empty when not configured.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 128,
+					"required": true,
+					"tag": 30040
+				},
+				{
+					"name": "ipAddress",
+					"titleRu": "IP-адрес ОФД",
+					"description": "Optional fallback IPv4 address used if domain resolution fails.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 15,
+					"required": false,
+					"tag": 30005
+				},
+				{
+					"name": "tcpPort",
+					"titleRu": "TCP-порт",
+					"description": "OFD connection TCP port, encoded as an unsigned 16-bit little-endian integer.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30006
+				},
+				{
+					"name": "timerSeconds",
+					"titleRu": "Интервал таймера ОФД (сек)",
+					"description": "OFD interaction timer interval in seconds; no default is imposed by the driver.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30009,
+					"unit": "seconds"
+				}
+			],
+			"notes": [
+				"An unset optional fallback IPv4 address may be absent or returned as an empty string. The domain tag may contain an empty unconfigured value; the domain, port, and timer remain documented response fields. Getter values are returned as stored rather than subjected to setter semantic validation."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 29
+			}
+		},
+		{
+			"name": "setPrinterSettings",
+			"aliases": [
+				"0x78"
+			],
+			"protocolCode": "0x78",
+			"category": "settings",
+			"titleRu": "Установить настройки печати в ККТ",
+			"description": "Set printer font size, retract behavior, and additional receipt text. The printer model is optional. Text is limited to 128 bytes after CP866 encoding.",
+			"descriptionRu": "Установить настройки печати в ККТ. Модель печатающего устройства: TLV, TAG=30019, LEN=1, BYTE, необязательный параметр. Размер шрифта: TAG=30015, LEN=1, BYTE, 0 — обычный шрифт, 1 — уменьшенный. Выполнять Retract для отчетов открытия и закрытия смены: TAG=30018, LEN=1, BYTE, 1 — забирать документ внутрь, 0 — выталкивать наружу; для печатающих устройств, поддерживающих retract. Дополнительный текст на кассовом чеке: TAG=30017, ASCII, не более 128 символов, печатается после QR-кода. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "printerModel",
+					"titleRu": "Модель печатающего устройства",
+					"description": "Printer model dictionary from Appendix 4, page 36.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"tag": 30019,
+					"enum": {
+						"0": "Automatic detection",
+						"1": "Custom-VKP80",
+						"10": "Custom-TG2460H",
+						"2": "Custom-TG2480H",
+						"3": "Citizen-CTS2000",
+						"4": "Citizen-PPU700",
+						"5": "Star TSP (ESC/POS)",
+						"6": "Star TUP (ESC/POS)",
+						"7": "Epson EU-422",
+						"8": "Custom-TG02H",
+						"9": "DP_Q582P"
+					},
+					"notes": "The settings table says 0–7, but the explicit printer dictionary on page 36 extends the documented values through 10. This parameter is explicitly optional in command 0x78."
+				},
+				{
+					"name": "fontSize",
+					"titleRu": "Размер шрифта",
+					"description": "0 for normal font, 1 for reduced font.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30015,
+					"enum": {
+						"0": "Normal",
+						"1": "Reduced"
+					}
+				},
+				{
+					"name": "retract",
+					"titleRu": "Выполнять Retract для отчетов открытия/закрытия смены",
+					"description": "0 ejects the report; 1 retracts it on printers supporting retract.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30018,
+					"enum": {
+						"0": "Eject",
+						"1": "Retract"
+					}
+				},
+				{
+					"name": "additionalText",
+					"titleRu": "Дополнительный текст на кассовом чеке",
+					"description": "Additional receipt text printed after the QR code; an empty string is encoded explicitly.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 128,
+					"required": true,
+					"tag": 30017
+				}
+			],
+			"output": [],
+			"notes": [
+				"The settings table lists printer models 0–7; the explicit dictionary in Appendix 4, page 36, also documents models 8, 9, and 10, so all values 0–10 are accepted.",
+				"Only printerModel is marked optional in the set command. fontSize, retract, and additionalText must be supplied; omission is not treated as a patch or an instruction to clear a setting.",
+				"Retract behavior applies only to printers supporting that function. Additional text is printed after the receipt QR code."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 30
+			}
+		},
+		{
+			"name": "getPrinterSettings",
+			"aliases": [
+				"0x79"
+			],
+			"protocolCode": "0x79",
+			"category": "settings",
+			"titleRu": "Запрос настроек печати из ККТ",
+			"description": "Read the printer model, font size, retract behavior, and extra receipt text. The model dictionary includes the explicitly documented values 0 through 10.",
+			"descriptionRu": "Запрос настроек печати из ККТ. Входные параметры: нет. Выходные данные: модель печатающего устройства, TAG=30019, LEN=1, BYTE; размер шрифта, TAG=30015, LEN=1, BYTE, 0 — обычный, 1 — уменьшенный; Retract для отчетов открытия и закрытия смены, TAG=30018, LEN=1, BYTE, 1 — забирать внутрь, 0 — выталкивать наружу; дополнительный текст на кассовом чеке, TAG=30017, ASCII, не более 128 символов, печатается после QR-кода.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "tlv",
+			"input": [],
+			"output": [
+				{
+					"name": "printerModel",
+					"titleRu": "Модель печатающего устройства",
+					"description": "Printer model dictionary from Appendix 4, page 36.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30019,
+					"enum": {
+						"0": "Automatic detection",
+						"1": "Custom-VKP80",
+						"10": "Custom-TG2460H",
+						"2": "Custom-TG2480H",
+						"3": "Citizen-CTS2000",
+						"4": "Citizen-PPU700",
+						"5": "Star TSP (ESC/POS)",
+						"6": "Star TUP (ESC/POS)",
+						"7": "Epson EU-422",
+						"8": "Custom-TG02H",
+						"9": "DP_Q582P"
+					},
+					"notes": "The settings table says 0–7, but the explicit printer dictionary on page 36 extends the documented values through 10."
+				},
+				{
+					"name": "fontSize",
+					"titleRu": "Размер шрифта",
+					"description": "0 for normal font, 1 for reduced font.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30015,
+					"enum": {
+						"0": "Normal",
+						"1": "Reduced"
+					}
+				},
+				{
+					"name": "retract",
+					"titleRu": "Выполнять Retract для отчетов открытия/закрытия смены",
+					"description": "0 ejects the report; 1 retracts it on printers supporting retract.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30018,
+					"enum": {
+						"0": "Eject",
+						"1": "Retract"
+					}
+				},
+				{
+					"name": "additionalText",
+					"titleRu": "Дополнительный текст на кассовом чеке",
+					"description": "Additional receipt text printed after the QR code; an empty string is encoded explicitly.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 128,
+					"required": true,
+					"tag": 30017
+				}
+			],
+			"notes": [
+				"The settings table lists printer models 0–7; the explicit dictionary in Appendix 4, page 36, also documents models 8, 9, and 10, so all values 0–10 are accepted.",
+				"Only printerModel is marked optional in the set command. fontSize, retract, and additionalText must be supplied; omission is not treated as a patch or an instruction to clear a setting.",
+				"Retract behavior applies only to printers supporting that function. Additional text is printed after the receipt QR code."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 30
+			}
+		},
+		{
+			"name": "setControlSettings",
+			"aliases": [
+				"0x80"
+			],
+			"protocolCode": "0x80",
+			"category": "settings",
+			"titleRu": "Установить параметры управления ККТ",
+			"description": "Set the KKT control interface and command TCP port. Interface 0 selects serial and 1 selects Ethernet. This changes the device settings, not this server's transport configuration.",
+			"descriptionRu": "Установить параметры управления ККТ. Интерфейс управления: TLV, TAG=30030, LEN=1, BYTE, 0 — RS232, 1 — Ethernet TCP/IP. Номер TCP-порта: TLV, TAG=30032, LEN=2, UINT16 LE. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "controlInterface",
+					"titleRu": "Интерфейс управления",
+					"description": "0 selects the serial interface; 1 selects Ethernet TCP/IP.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30030,
+					"enum": {
+						"0": "Serial (RS232)",
+						"1": "Ethernet (TCP/IP)"
+					}
+				},
+				{
+					"name": "tcpPort",
+					"titleRu": "Номер TCP-порта",
+					"description": "KKT command-server TCP port as an unsigned 16-bit little-endian integer.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30032
+				}
+			],
+			"output": [],
+			"notes": [
+				"Changing the KKT control interface or TCP command port may interrupt the active connection. If its response is lost, the request remains an unknown outcome and is not automatically retried.",
+				"A setControlSettings step selecting Ethernet must be the final step of an executeOperation batch. On a TCP-connected device, any setControlSettings step must be final because its interface or port can change.",
+				"Writing KKT control settings does not rewrite the server's per-device address or connection type. Configure this server's serial or TCP transport separately and use a static IP address or DHCP reservation for LAN devices."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 31
+			}
+		},
+		{
+			"name": "getControlSettings",
+			"aliases": [
+				"0x81"
+			],
+			"protocolCode": "0x81",
+			"category": "settings",
+			"titleRu": "Запрос параметров управления ККТ",
+			"description": "Read the selected KKT control interface and command TCP port. Interface 0 means serial, and 1 means Ethernet TCP/IP.",
+			"descriptionRu": "Запрос параметров управления ККТ. Входные параметры: нет. Выходные данные: интерфейс управления, TAG=30030, LEN=1, BYTE, 0 — RS232, 1 — Ethernet TCP/IP; номер TCP-порта, TAG=30032, LEN=2, UINT16 LE.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "tlv",
+			"input": [],
+			"output": [
+				{
+					"name": "controlInterface",
+					"titleRu": "Интерфейс управления",
+					"description": "0 selects the serial interface; 1 selects Ethernet TCP/IP.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"tag": 30030,
+					"enum": {
+						"0": "Serial (RS232)",
+						"1": "Ethernet (TCP/IP)"
+					}
+				},
+				{
+					"name": "tcpPort",
+					"titleRu": "Номер TCP-порта",
+					"description": "KKT command-server TCP port as an unsigned 16-bit little-endian integer.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30032
+				}
+			],
+			"notes": [
+				"Changing the KKT control interface or TCP command port may interrupt the active connection. If its response is lost, the request remains an unknown outcome and is not automatically retried.",
+				"A setControlSettings step selecting Ethernet must be the final step of an executeOperation batch. On a TCP-connected device, any setControlSettings step must be final because its interface or port can change.",
+				"Writing KKT control settings does not rewrite the server's per-device address or connection type. Configure this server's serial or TCP transport separately and use a static IP address or DHCP reservation for LAN devices."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 31
+			}
+		},
+		{
+			"name": "getCashCounters",
+			"aliases": [
+				"0xB0",
+				"0xb0"
+			],
+			"protocolCode": "0xB0",
+			"category": "cashCounters",
+			"titleRu": "Запрос суммы наличных и электронных в кассе",
+			"description": "Read the cash and electronic-payment counters since shift opening. Each amount is an exact five-byte little-endian unsigned integer in kopecks. The KKT adds sale and expense-refund receipt amounts plus cash deposits, and subtracts expense and sale-refund receipt amounts plus cash withdrawals for the corresponding payment type.",
+			"descriptionRu": "Запрос суммы наличных и электронных в кассе (0xB0). Возвращает суммы денежных средств наличными и электронными с момента открытия смены. Для соответствующего типа оплаты суммируются все значения по кассовым чекам и чекам коррекции с признаками расчетов «приход» и «возврат расхода», а также все внесения денежных средств; вычитаются все значения по кассовым чекам и чекам коррекции по «расход» и «возврат прихода», а также все выплаты денежных средств. Входные параметры: нет. Выходные данные: сумма наличными в кассе, UINT40 LE, в копейках; сумма электронными, проведенная через ККТ, UINT40 LE, в копейках.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "cashKopecks",
+					"titleRu": "Сумма наличными в кассе",
+					"description": "Cash counter since the shift opened, in integer kopecks.",
+					"jsonType": "integer",
+					"wireType": "UINT40",
+					"required": true,
+					"unit": "kopecks"
+				},
+				{
+					"name": "electronicKopecks",
+					"titleRu": "Сумма электронными, проведенная через ККТ",
+					"description": "Electronic-payment counter since the shift opened, in integer kopecks.",
+					"jsonType": "integer",
+					"wireType": "UINT40",
+					"required": true,
+					"unit": "kopecks"
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 27
+			}
+		},
+		{
+			"name": "resetCashCounters",
+			"aliases": [
+				"0xB1",
+				"0xb1"
+			],
+			"protocolCode": "0xB1",
+			"category": "cashCounters",
+			"titleRu": "Сброс счетчиков денежных средств",
+			"description": "Reset the monetary counters retained by the KKT since the shift opened. This changes device state and requires a persisted requestId.",
+			"descriptionRu": "Сброс счетчиков денежных средств (0xB1). Выполняет обнуление денежных счетчиков, сохраненных в ККТ с начала смены. Входные параметры: нет. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 27
+			}
+		},
+		{
+			"name": "printCashCountersReport",
+			"aliases": [
+				"0xB2",
+				"0xb2"
+			],
+			"protocolCode": "0xB2",
+			"category": "cashCounters",
+			"titleRu": "Печать информационного отчета",
+			"description": "Generate and print an informational report of the cash-register monetary operations since the shift opened. Printing is a side effect, so a persisted requestId is required.",
+			"descriptionRu": "Печать информационного отчета (0xB2). Формирует и выводит на печать информационный отчет обо всех денежных операциях, проведенных с начала смены по кассе. Входные параметры: нет. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 27
+			}
+		},
+		{
+			"name": "depositCash",
+			"aliases": [
+				"0xB3",
+				"0xb3"
+			],
+			"protocolCode": "0xB3",
+			"category": "cashCounters",
+			"titleRu": "Внесение наличных денежных средств",
+			"description": "Record a cash deposit. Supply amountKopecks as an unsigned decimal integer or decimal-digit string; the driver encodes the exact amount as a minimal-length little-endian VLN. No response data is documented.",
+			"descriptionRu": "Внесение наличных денежных средств (0xB3). Входные параметры: сумма внесения наличными, VLN, в копейках. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "amountKopecks",
+					"titleRu": "Сумма внесения наличными",
+					"description": "Cash deposit amount in integer kopecks.",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"unit": "kopecks",
+					"notes": "An unsigned decimal-digit JSON string is also accepted to preserve values above the exact-integer range of floating-point JSON clients. Zero is accepted; the protocol table does not specify a positive-only minimum."
+				}
+			],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 27
+			}
+		},
+		{
+			"name": "withdrawCash",
+			"aliases": [
+				"0xB4",
+				"0xb4"
+			],
+			"protocolCode": "0xB4",
+			"category": "cashCounters",
+			"titleRu": "Выплата наличных денежных средств",
+			"description": "Record a cash withdrawal. Supply amountKopecks as an unsigned decimal integer or decimal-digit string; the driver encodes the exact amount as a minimal-length little-endian VLN. No response data is documented.",
+			"descriptionRu": "Выплата наличных денежных средств (0xB4). Входные параметры: сумма выплаты наличными, VLN, в копейках. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "amountKopecks",
+					"titleRu": "Сумма выплаты наличными",
+					"description": "Cash withdrawal amount in integer kopecks.",
+					"jsonType": "integer",
+					"wireType": "VLN",
+					"required": true,
+					"unit": "kopecks",
+					"notes": "An unsigned decimal-digit JSON string is also accepted to preserve values above the exact-integer range of floating-point JSON clients. Zero is accepted; the protocol table does not specify a positive-only minimum."
+				}
+			],
+			"output": [],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 27
+			}
+		},
+		{
+			"name": "getPrintLineWidth",
+			"aliases": [
+				"0xBB",
+				"0xbb"
+			],
+			"protocolCode": "0xBB",
+			"category": "diagnostics",
+			"titleRu": "Запрос количества символов в печатаемой строке",
+			"description": "Read the configured number of characters per printed line. The KKT determines the value from the selected or detected printing device and font size.",
+			"descriptionRu": "Запрос количества символов в печатаемой строке (настройки) (0xBB). Входные параметры: нет. Выходные данные: количество символов в строке, BYTE. Количество символов возвращается в соответствии с заданным (определенным) печатающим устройством и размером шрифта.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "charactersPerLine",
+					"titleRu": "Количество символов в строке",
+					"description": "Characters per printed line for the current printing device and font size.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
+				"version": "01.05",
+				"page": 12
+			}
+		},
+		{
+			"name": "syncDateTime",
+			"aliases": [],
+			"protocolCode": "",
+			"category": "settings",
+			"titleRu": "Синхронизировать время ККТ с сервером",
+			"description": "Set the terminal clock from the Go server's local date and time at execution using setDateTime (0x72, TLV tag 30000). Precision is one minute; seconds and timezone are not transmitted. This application command has no protocol command byte.",
+			"descriptionRu": "Считать локальные дату и время сервера при выполнении и передать в ККТ стандартной командой 0x72. Точность — одна минута. Входных параметров нет. Возвращается переданное значение dateTime. Повтор requestId возвращает сохраненный результат без повторной синхронизации.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "application",
+			"responseLayout": "application",
+			"input": [],
+			"output": [
+				{
+					"name": "dateTime",
+					"titleRu": "Установленные дата и время",
+					"description": "Server-local calendar date and time sent to the terminal, formatted YYYY-MM-DDTHH:mm; not a read-back of the terminal clock.",
+					"jsonType": "string",
+					"wireType": "",
+					"required": true
+				}
+			],
+			"notes": [
+				"The clock is sampled after queue waiting and configured identity verification, immediately before the standard setter is executed.",
+				"The server process's local timezone is used, not the HTTP caller's timezone. Configure the host timezone or TZ environment variable as appropriate.",
+				"Use a new requestId for each intended synchronization. Repeating an existing requestId replays its saved result without reading the clock again."
+			],
+			"source": {
+				"document": "goterminalfa HTTP API",
+				"version": "0.5.0",
+				"page": 0
+			}
+		},
+		{
+			"name": "executeOperation",
+			"aliases": [],
+			"protocolCode": "",
+			"category": "operations",
+			"titleRu": "Выполнить последовательность команд одной операцией",
+			"description": "Execute a complete command sequence under one device lock and one durable requestId. Each command is validated before any device communication. Serial transport remains open for the complete operation; TCP uses one connection per protocol command. This application operation has no protocol command byte.",
+			"descriptionRu": "Операция HTTP API драйвера, а не отдельная команда протокола ККТ. Все команды последовательности проверяются заранее и выполняются с исключительным доступом к одному устройству. При неопределенном исходе повторное выполнение блокируется.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "",
+			"responseLayout": "",
+			"input": [
+				{
+					"name": "commands",
+					"titleRu": "",
+					"description": "Ordered commands; complete all started fiscal, archive, or print-buffer workflows in this request.",
+					"jsonType": "array",
+					"wireType": "OPERATION",
+					"required": true,
+					"minItems": 1,
+					"maxItems": 256,
+					"children": [
+						{
+							"name": "cmd",
+							"titleRu": "",
+							"description": "Implemented command name or alias.",
+							"jsonType": "string",
+							"wireType": "",
+							"required": true
+						},
+						{
+							"name": "params",
+							"titleRu": "",
+							"description": "Parameters of the selected command; omission means an empty object.",
+							"jsonType": "object",
+							"wireType": "",
+							"required": false
+						},
+						{
+							"name": "repeatUntilComplete",
+							"titleRu": "",
+							"description": "Only for archive command 0x36: explicitly read until the length returned by 0x35 has been consumed; at most 2048 reads.",
+							"jsonType": "boolean",
+							"wireType": "",
+							"required": false
+						}
+					]
+				}
+			],
+			"output": [
+				{
+					"name": "results",
+					"titleRu": "",
+					"description": "Ordered command results. A repeated archive-read result contains chunks and byteCount.",
+					"jsonType": "array",
+					"wireType": "",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "goterminalfa HTTP API",
+				"version": "0.5.0",
+				"page": 0
+			}
+		}
+	]
+}

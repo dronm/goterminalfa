@@ -1,0 +1,3 @@
+# Example for the observed USB descriptor, not the KKT factory serial.
+# Adjust ATTRS{serial} and the alias for each physical device.
+SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", ATTRS{serial}=="314", SYMLINK+="terminalfa"

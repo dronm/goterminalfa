@@ -1,0 +1,6 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "syncDateTime",
+	"requestId": "clock-sync-001",
+	"params": {}
+}

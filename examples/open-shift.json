@@ -1,0 +1,19 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "startOpenShift",
+				"params": {
+					"suppressPrint": 1
+				}
+			},
+			{
+				"cmd": "completeOpenShift",
+				"params": {}
+			}
+		]
+	},
+	"requestId": "open-shift-001"
+}

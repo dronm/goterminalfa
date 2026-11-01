@@ -1,0 +1,20 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "selectFiscalDocumentTLV",
+				"params": {
+					"documentNumber": 1
+				}
+			},
+			{
+				"cmd": "readFiscalDocumentTLV",
+				"params": {},
+				"repeatUntilComplete": true
+			}
+		]
+	},
+	"requestId": "archive-document-001"
+}

@@ -1,0 +1,25 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "getNetworkSettings",
+				"params": {}
+			},
+			{
+				"cmd": "getOfdSettings",
+				"params": {}
+			},
+			{
+				"cmd": "getPrinterSettings",
+				"params": {}
+			},
+			{
+				"cmd": "getControlSettings",
+				"params": {}
+			}
+		]
+	},
+	"requestId": "settings-snapshot-001"
+}
