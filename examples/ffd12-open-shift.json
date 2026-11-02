@@ -1,0 +1,35 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "startOpenShift",
+				"params": {
+					"suppressPrint": 1
+				}
+			},
+			{
+				"cmd": "sendCashierData",
+				"params": {
+					"cashierName": "Cashier"
+				}
+			},
+			{
+				"cmd": "sendShiftOpeningData",
+				"params": {
+					"cashierName": "Cashier",
+					"documentAddress": "Example address",
+					"documentPlace": "Example place",
+					"reportAttribute": "shift-open",
+					"reportDataHex": "0102"
+				}
+			},
+			{
+				"cmd": "completeOpenShift",
+				"params": {}
+			}
+		]
+	},
+	"requestId": "ffd12-open-shift-001"
+}

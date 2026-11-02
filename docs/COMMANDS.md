@@ -1,10 +1,12 @@
 # Command index
 
-The server exposes **74 catalogue entries**: **68 implemented base-protocol commands**, **four unavailable base-protocol entries**, and the two application commands **`executeOperation`** and **`syncDateTime`**. All **72 command entries listed in the supplied base protocol** are represented.
+The default **base** catalogue exposes **74 entries**: **68 implemented base-protocol commands**, **four unavailable base-protocol entries**, and the two application commands **`executeOperation`** and **`syncDateTime`**. All **72 command entries listed in the supplied base protocol** are represented. The table below describes that default profile.
 
 Read-only commands perform fresh device queries and are not journaled. State-changing commands require a `requestId`. **Operation** means the command must appear inside a complete `executeOperation`; **Direct** allows a standalone request. Unavailable entries return `501 command_unavailable` without device communication.
 
 Use `GET /api/v1/commands` for the current full definitions. [commands.json](commands.json) is an exported snapshot with all input/output schemas, TLV tags, exact types, enums, flags, preconditions, notes, and original Russian descriptions. [API.md](API.md) explains request formats and execution semantics.
+
+For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 79 entries contain 65 implemented wire commands, 12 explicitly unavailable entries, and the two application commands. [FFD12.md](FFD12.md) contains the full supplement audit matrix, new `0x96`/`0x98`/`0xE4`/`0xE5`/`0xE6` definitions, inherited commands, and remaining scope limits. Do not use the base table as a substitute for that device's actual schemas.
 
 | Code | Canonical command | Category | Policy | Invocation | Protocol 01.05 page |
 | --- | --- | --- | --- | --- | --- |

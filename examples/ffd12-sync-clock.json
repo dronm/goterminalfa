@@ -1,0 +1,6 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "syncDateTime",
+	"params": {},
+	"requestId": "ffd12-clock-sync-001"
+}

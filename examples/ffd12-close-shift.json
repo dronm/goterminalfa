@@ -1,0 +1,33 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "startCloseShift",
+				"params": {
+					"suppressPrint": 1
+				}
+			},
+			{
+				"cmd": "sendCashierData",
+				"params": {
+					"cashierName": "Cashier"
+				}
+			},
+			{
+				"cmd": "sendShiftClosingData",
+				"params": {
+					"cashierName": "Cashier",
+					"documentAddress": "Example address",
+					"documentPlace": "Example place"
+				}
+			},
+			{
+				"cmd": "completeCloseShift",
+				"params": {}
+			}
+		]
+	},
+	"requestId": "ffd12-close-shift-001"
+}

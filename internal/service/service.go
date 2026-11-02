@@ -65,6 +65,7 @@ func Failure(req Request, status int, code, message string) Reply {
 
 type Device struct {
 	ID                   string
+	ProtocolProfile      string
 	ConnectionType       string
 	ExpectedSerialNumber string
 	Client               *terminalfa.Client
@@ -76,7 +77,7 @@ func NewDevice(id, connectionType, expectedSerial string, client *terminalfa.Cli
 	if queueSize < 1 {
 		queueSize = 32
 	}
-	return &Device{ID: id, ConnectionType: connectionType, ExpectedSerialNumber: expectedSerial, Client: client,
+	return &Device{ID: id, ProtocolProfile: "base", ConnectionType: connectionType, ExpectedSerialNumber: expectedSerial, Client: client,
 		gate: make(chan struct{}, 1), slots: make(chan struct{}, queueSize+1)}
 }
 
@@ -107,6 +108,7 @@ func (d *Device) acquire(ctx context.Context) (func(), error) {
 
 type DeviceInfo struct {
 	ID                   string `json:"id"`
+	ProtocolProfile      string `json:"protocolProfile"`
 	ConnectionType       string `json:"connectionType"`
 	ExpectedSerialNumber string `json:"expectedSerialNumber,omitempty"`
 }
@@ -115,20 +117,32 @@ type Service struct {
 	devices  map[string]*Device
 	commands map[string]Command
 	list     []CommandDefinition
+	profiles map[string]*commandCatalogue
 	journal  *store.Store
 	logger   *logrus.Logger
+}
+
+type commandCatalogue struct {
+	commands map[string]Command
+	list     []CommandDefinition
 }
 
 func New(devices []*Device, commands []Command, journal *store.Store, logger *logrus.Logger) (*Service, error) {
 	if journal == nil || logger == nil {
 		return nil, errors.New("journal and logger are required")
 	}
-	s := &Service{devices: map[string]*Device{}, commands: map[string]Command{}, journal: journal, logger: logger}
+	s := &Service{devices: map[string]*Device{}, commands: map[string]Command{}, profiles: map[string]*commandCatalogue{}, journal: journal, logger: logger}
 	for _, d := range devices {
 		if d == nil || !config.ValidID.MatchString(d.ID) || d.Client == nil || s.devices[d.ID] != nil {
 			return nil, errors.New("invalid or duplicate device")
 		}
 		s.devices[d.ID] = d
+		if d.ProtocolProfile == "" {
+			d.ProtocolProfile = "base"
+		}
+		if d.ProtocolProfile != "base" && d.ProtocolProfile != "ffd1.2" {
+			return nil, fmt.Errorf("unsupported protocol profile %q for %s", d.ProtocolProfile, d.ID)
+		}
 	}
 	for _, cmd := range commands {
 		if cmd.Definition.Name == "" || cmd.Execute == nil || cmd.Validate == nil {
@@ -150,17 +164,49 @@ func New(devices []*Device, commands []Command, journal *store.Store, logger *lo
 		}
 		s.list = append(s.list, cmd.Definition)
 	}
+	s.profiles["base"] = &commandCatalogue{commands: s.commands, list: s.list}
+	for _, d := range devices {
+		if d.ProtocolProfile == "base" || s.profiles[d.ProtocolProfile] != nil {
+			continue
+		}
+		commands, err := BuiltinCommandsForProfile(d.ProtocolProfile)
+		if err != nil {
+			return nil, err
+		}
+		catalogue := &commandCatalogue{commands: make(map[string]Command)}
+		for _, cmd := range commands {
+			for _, name := range append([]string{cmd.Definition.Name}, cmd.Definition.Aliases...) {
+				if _, found := catalogue.commands[name]; found {
+					return nil, fmt.Errorf("duplicate %s command name %q", d.ProtocolProfile, name)
+				}
+				catalogue.commands[name] = cmd
+			}
+			catalogue.list = append(catalogue.list, cmd.Definition)
+		}
+		s.profiles[d.ProtocolProfile] = catalogue
+	}
 	return s, nil
 }
 
 func (s *Service) Commands() []CommandDefinition { return s.list }
+
+func (s *Service) CommandsForDevice(deviceID string) ([]CommandDefinition, string, error) {
+	if !config.ValidID.MatchString(deviceID) {
+		return nil, "", errors.New("invalid deviceId")
+	}
+	d, found := s.devices[deviceID]
+	if !found {
+		return nil, "", errors.New("unknown device")
+	}
+	return s.profiles[d.ProtocolProfile].list, d.ProtocolProfile, nil
+}
 
 func (s *Service) Healthy(ctx context.Context) error { return s.journal.Ping(ctx) }
 
 func (s *Service) Devices() []DeviceInfo {
 	list := make([]DeviceInfo, 0, len(s.devices))
 	for _, d := range s.devices {
-		list = append(list, DeviceInfo{ID: d.ID, ConnectionType: d.ConnectionType, ExpectedSerialNumber: d.ExpectedSerialNumber})
+		list = append(list, DeviceInfo{ID: d.ID, ProtocolProfile: d.ProtocolProfile, ConnectionType: d.ConnectionType, ExpectedSerialNumber: d.ExpectedSerialNumber})
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
 	return list
@@ -196,7 +242,7 @@ func (s *Service) Execute(ctx context.Context, req Request) Reply {
 	if !ok {
 		return Failure(req, 404, "unknown_device", "device is not configured")
 	}
-	cmd, ok := s.commands[req.Command]
+	cmd, ok := s.profiles[device.ProtocolProfile].commands[req.Command]
 	if !ok {
 		return Failure(req, 404, "unknown_command", "command is not implemented")
 	}
@@ -227,6 +273,11 @@ func (s *Service) Execute(ctx context.Context, req Request) Reply {
 		return Failure(req, 400, "operation_required", "this stateful command must be part of a complete executeOperation request")
 	}
 	key := fingerprint(req.Command, params)
+	if device.ProtocolProfile != "base" {
+		// Keep legacy fingerprints stable. A profile switch cannot reuse a saved
+		// request under a different wire format; the old claim causes conflict.
+		key = fingerprint(device.ProtocolProfile+":"+req.Command, params)
+	}
 	if cmd.Definition.IdempotencyRequired {
 		if req.RequestID == "" {
 			return Failure(req, 400, "invalid_request", "requestId is required for this command")

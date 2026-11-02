@@ -13,6 +13,8 @@ Add the configured bearer header if needed. The same pattern applies to these re
 
 Requests are identical for serial and TCP devices: `deviceId` selects the transport configured by the server. Use [../config.tcp.example.json](../config.tcp.example.json) for LAN or [../config.mixed.example.json](../config.mixed.example.json) for mixed units. The TCP example's `192.0.2.50:7778` is illustrative; the KKT's actual IP and command port must be configured separately.
 
+Existing examples without the `ffd12-` prefix use the default base protocol. The profile is selected per configured device, independently of transport; query `GET /api/v1/commands?deviceId=...` for the exact schemas.
+
 | File | Command |
 | --- | --- |
 | `read-serial-number.json` | `getSerialNumber` |
@@ -47,6 +49,26 @@ The receipt uses `quantity: "1"` as an exact decimal string and integer kopecks 
 The settings setters use full documented forms, not patches. Omission of the optional OFD fallback IP or printer model remains omission; required fields are not filled with inferred defaults. Port numbers and timer values in the templates are illustrative, not manufacturer defaults. Cash templates use integer strings to demonstrate exact VLN amounts.
 
 `sync-clock.json` works with either transport. The server samples time after queue waiting and any configured identity verification, according to its own clock and timezone. For example, start it with `TZ=Asia/Yekaterinburg` when that is the intended device calendar timezone. A repeated request ID replays the original `data.dateTime` and does not set a later time; use a new ID for each new intended synchronization. The example creates no automatic or scheduled synchronization.
+
+## FFD 1.2 examples
+
+Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `cashdesk-ffd12` logical device for the `ffd12-*` files. These select the explicit FFD profile; the unprefixed examples above retain base formats. [../docs/FFD12.md](../docs/FFD12.md) provides the source audit and profile limitations, and [../docs/commands-ffd12.json](../docs/commands-ffd12.json) contains the selected schemas.
+
+| File | Purpose |
+| --- | --- |
+| `ffd12-read-shift.json` | Fresh read-only `getShiftParameters` (`0x20`) |
+| `ffd12-open-shift.json` | Complete opening with inherited cashier `0x2F`, optional FFD `0xE4`, and the 11-byte final response |
+| `ffd12-close-shift.json` | Complete closing with inherited cashier `0x2F` and optional `0xE5` |
+| `ffd12-create-receipt.json` | Complete unmarked receipt with flat `0x96`, optional extras `0x98`, payment `0x2D`, and strict finalization `0x24` |
+| `ffd12-create-correction.json` | Complete correction with direct `correctedCalculationDate` in `0x98` and finalization `0x26` |
+| `ffd12-cancel-receipt.json` | Begin and cancel an unfinalized receipt through inherited `0x10` |
+| `ffd12-settlement-report.json` | Complete settlement report with optional `0xE6` data |
+| `ffd12-read-clock.json` | Inherited read-only `0x73` |
+| `ffd12-sync-clock.json` | Explicit journaled clock synchronization through inherited `0x72` |
+
+FFD receipt items have no base `item` wrapper. The shift `suppressPrint` BYTE differs from the optional receipt `printSuppressionCode` UINT16 value `41029`. E4/E5/E6 are optional commands; if included, their documented fields are required and report attribute/data must be supplied as a pair. The examples include both `0x2F` and E4/E5 to demonstrate the retained and supplement paths, not to require both in every mode.
+
+All fiscal examples remain deliberate mutation templates. Replace illustrative cashier/address, tax/payment, and correction-date values for the actual device. No marking-code verification or marked-item workflow is implemented. Settings reads remain reads; their setters, including `0x72`/`0x74`/`0x76`/`0x80`, still require request IDs under this profile.
 
 Changing the control interface to Ethernet (`controlInterface: 1`) can disable the serial control path and must be the final step of an `executeOperation`. On a TCP-configured device, any network-settings or control-settings write must be the final step, even if its interface value remains unchanged. These writes do not modify the server's per-device configuration; change its connection separately. No supplied script selects Ethernet or sends mutating examples automatically. [../docs/LAN.md](../docs/LAN.md) describes the migration and read-only connection check.
 

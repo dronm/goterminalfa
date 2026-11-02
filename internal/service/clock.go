@@ -30,7 +30,7 @@ func syncDateTimeCommand(setDateTime Command, now func() time.Time) Command {
 				"The server process's local timezone is used, not the HTTP caller's timezone. Configure the host timezone or TZ environment variable as appropriate.",
 				"Use a new requestId for each intended synchronization. Repeating an existing requestId replays its saved result without reading the clock again.",
 			},
-			Source: Source{Document: "goterminalfa HTTP API", Version: "0.5.0"},
+			Source: Source{Document: "goterminalfa HTTP API", Version: "0.6.0"},
 		},
 		Validate: func(params json.RawMessage) error {
 			_, err := encodeFields(nil, "positional", params)

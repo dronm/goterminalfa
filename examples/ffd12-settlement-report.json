@@ -1,0 +1,24 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "beginSettlementReport",
+				"params": {}
+			},
+			{
+				"cmd": "sendSettlementReportData",
+				"params": {
+					"documentAddress": "Example address",
+					"documentPlace": "Example place"
+				}
+			},
+			{
+				"cmd": "finalizeSettlementReport",
+				"params": {}
+			}
+		]
+	},
+	"requestId": "ffd12-settlement-001"
+}

@@ -72,7 +72,7 @@ func operationCommand(commands []Command) Command {
 				}}},
 			Output: []ParameterDefinition{{Name: "results", JSONType: "array", Required: true,
 				Description: "Ordered command results. A repeated archive-read result contains chunks and byteCount."}},
-			Source: Source{Document: "goterminalfa HTTP API", Version: "0.5.0"},
+			Source: Source{Document: "goterminalfa HTTP API", Version: "0.6.0"},
 		},
 		Canonicalize: func(raw json.RawMessage) (json.RawMessage, error) {
 			steps, err := parse(raw)
@@ -255,7 +255,7 @@ func isWorkflowCommand(value string) bool {
 	switch code {
 	case 0x12, 0x13, 0x16, 0x19, 0x1F, 0x21, 0x22, 0x23, 0x24,
 		0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E,
-		0x2F, 0x35, 0x36, 0x3F, 0x64, 0x65:
+		0x2F, 0x35, 0x36, 0x3F, 0x64, 0x65, 0x96, 0x98, 0xE4, 0xE5, 0xE6:
 		return true
 	}
 	return false
@@ -263,6 +263,9 @@ func isWorkflowCommand(value string) bool {
 
 func validateOperationWorkflow(steps []operationStep) error {
 	active := ""
+	activeFFD12 := false
+	paymentDataSupplied := false
+	correctionDateSupplied := false
 	archiveRead := false
 	bufferedLines := 0
 	var registrationType uint64
@@ -326,6 +329,9 @@ func validateOperationWorkflow(steps []operationStep) error {
 				return fmt.Errorf("commands[%d] starts %s while %s is unfinished", index, start, active)
 			}
 			active, archiveRead = start, false
+			activeFFD12 = step.resolved.Definition.ProtocolProfile == "ffd1.2"
+			paymentDataSupplied = false
+			correctionDateSupplied = false
 			if code == 0x12 {
 				registrationType, _ = operationUintParam(step.Params, "reportType")
 			}
@@ -333,6 +339,7 @@ func validateOperationWorkflow(steps []operationStep) error {
 		}
 		if code == 0x10 && active != "archive" {
 			active = ""
+			activeFFD12, paymentDataSupplied, correctionDateSupplied = false, false, false
 			continue
 		}
 		finish := ""
@@ -366,7 +373,11 @@ func validateOperationWorkflow(steps []operationStep) error {
 			if code == 0x24 {
 				bufferedLines = 0
 			}
+			if code == 0x26 && (activeFFD12 || step.resolved.Definition.ProtocolProfile == "ffd1.2") && !correctionDateSupplied {
+				return errors.New("FFD 1.2 correction receipt requires additional data 0x98 with correctedCalculationDate before finalization")
+			}
 			active = ""
+			activeFFD12, paymentDataSupplied, correctionDateSupplied = false, false, false
 			continue
 		}
 		allowed := false
@@ -375,8 +386,35 @@ func validateOperationWorkflow(steps []operationStep) error {
 			allowed = active == "registration"
 		case 0x2F:
 			allowed = active == "shift-open" || active == "shift-close"
-		case 0x19, 0x1F, 0x2B, 0x2C, 0x2D:
+		case 0x19:
 			allowed = active == "receipt"
+			if allowed && (activeFFD12 || step.resolved.Definition.ProtocolProfile == "ffd1.2") && !paymentDataSupplied {
+				return errors.New("FFD 1.2 cashless-payment details 0x19 require preceding payment data 0x2D in the same receipt")
+			}
+		case 0x1F, 0x2B, 0x2C:
+			allowed = active == "receipt"
+		case 0x2D:
+			allowed = active == "receipt" || (active == "correction" && step.resolved.Definition.ProtocolProfile == "ffd1.2")
+			if allowed {
+				paymentDataSupplied = true
+			}
+		case 0x96:
+			allowed = active == "receipt" || active == "correction"
+		case 0x98:
+			allowed = active == "receipt" || active == "correction"
+			if allowed && step.resolved.Definition.ProtocolProfile == "ffd1.2" {
+				if active == "correction" {
+					if _, present := operationUintParam(step.Params, "correctedCalculationDate"); present {
+						correctionDateSupplied = true
+					}
+				}
+			}
+		case 0xE4:
+			allowed = active == "shift-open"
+		case 0xE5:
+			allowed = active == "shift-close"
+		case 0xE6:
+			allowed = active == "settlement-report"
 		case 0x2E, 0x3F:
 			allowed = active == "correction"
 		case 0x36:

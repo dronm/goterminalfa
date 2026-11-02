@@ -86,6 +86,19 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case "/api/v1/commands":
 		if r.Method == http.MethodGet {
+			if values, present := r.URL.Query()["deviceId"]; present {
+				if len(values) != 1 || !config.ValidID.MatchString(values[0]) {
+					fail(400, "invalid_request", "a single valid deviceId is required")
+					return
+				}
+				commands, profile, err := a.service.CommandsForDevice(values[0])
+				if err != nil {
+					fail(404, "unknown_device", "device is not configured")
+					return
+				}
+				send(marshal(200, map[string]any{"commands": commands, "deviceId": values[0], "protocolProfile": profile}))
+				return
+			}
 			send(marshal(200, map[string]any{"commands": a.service.Commands()}))
 			return
 		}

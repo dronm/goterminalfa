@@ -2,11 +2,12 @@
 
 Go HTTP/JSON driver service for **ККТ Терминал-ФА**. Applications address configured devices by logical ID; the service exchanges the binary KKT protocol over USB serial or raw TCP.
 
-The command catalogue covers **all 72 entries listed in the supplied base protocol: 68 implemented and four explicitly unavailable** because their payload formats are not defined. Status and identification, registration, shifts, receipts, correction receipts, archives, printing, cash counters, and device settings are included. Two application commands bring discovery to **74 entries**: **`executeOperation`** runs complete sequences under one device lock and request ID, and **`syncDateTime`** sets the KKT clock from the Go server's local wall clock.
+The default **`base` protocol profile** covers **all 72 entries listed in the supplied base protocol: 68 implemented and four explicitly unavailable** because their payload formats are not defined. Two application commands bring that catalogue to **74 entries**: **`executeOperation`** runs complete sequences under one device lock and request ID, and **`syncDateTime`** sets the KKT clock from the Go server's local wall clock. An explicit per-device **`ffd1.2`** profile selects the implemented FFD 1.2 supplement formats for shifts and unmarked receipts; it does not claim full marked-goods support.
 
 - Multiple independently configured devices, with a bounded waiting queue and exclusive execution per device.
 - Serial transport with 115200 baud and 8N1 by default; connections open for an operation and close afterward.
 - Per-device `serial` or `tcp` transport selection, including mixed devices in one server. TCP opens a new connection for each protocol command.
+- Per-device protocol profiles, independent of transport: `base` by default, or explicitly selected `ffd1.2`.
 - Logrus structured logging, with JSON or text output.
 - JSON configuration and SQLite persistence for idempotent state-changing operations.
 - A command catalogue containing parameter metadata, descriptions, and documentation references.
@@ -124,6 +125,14 @@ TCP `connectTimeout` bounds dialing; `responseTimeout` bounds the whole exchange
 
 Use [docs/LAN.md](docs/LAN.md) to prepare a KKT for LAN control. The device uses raw binary TCP, not HTTP; application HTTP/JSON requests remain identical. A TCP operation retains exclusive device ownership across all of its separate command connections. Serial operations retain one open port for the full sequence.
 
+## Protocol profiles
+
+Omitting a device's `protocolProfile` preserves the `base` formats and existing HTTP behavior. Set `"protocolProfile": "ffd1.2"` alongside that device's `id` and `connection` to select the supported supplement definitions. The setting is independent of serial/TCP transport. [config.ffd12.example.json](config.ffd12.example.json) configures the example logical device `cashdesk-ffd12` with a longer request timeout for complete operations.
+
+Use `GET /api/v1/commands?deviceId=cashdesk-ffd12` to inspect that device's actual catalogue. Bare `GET /api/v1/commands` retains the base catalogue. Device discovery includes the selected `protocolProfile`; request bodies still identify only a configured `deviceId`, not an override profile.
+
+FFD 1.2 receipt items use flat `addReceiptItemUnmarked` parameters (`0x96`); shift completion returns `warningFlags`, and receipt/correction finalization uses the supplement's strict formats. Old base fiscal commands superseded by the supplement are unavailable in this profile. [docs/FFD12.md](docs/FFD12.md) contains the audit matrix, exact differences, supported subset, and remaining ambiguities. Existing examples retain the base profile; `examples/ffd12-*.json` require the FFD example configuration.
+
 `logging.file` empty means standard error, which systemd captures in the journal. `debug` logging includes hexadecimal protocol frames. Set `http.bearerToken` to require an `Authorization: Bearer ...` header for `/api/v1/*` access; `/healthz` remains available without authentication.
 
 ## Read a serial number
@@ -226,4 +235,4 @@ The unit creates `/var/lib/goterminalfa` through `StateDirectory`. On Arch, chan
 
 Definitions follow **«Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф», version 01.05**, including its appendix-10 additions. Command metadata records page references, field constraints, notes, and prerequisites. The [manufacturer's product page](https://kit-invest.ru/TerminalFA) links to its protocol and operating manual.
 
-The four unavailable commands (`0x14`, `0x15`, `0x17`, `0x34`) return HTTP `501`. The separate FFD 1.2 supplement contains conflicting fiscal-storage closure codes, so those definitions are not silently mixed into the base protocol. The driver does not automatically retry device commands or fail over between transports.
+In the base profile, four unavailable commands (`0x14`, `0x15`, `0x17`, `0x34`) return HTTP `501`. The FFD 1.2 profile also blocks superseded base fiscal formats and does not expose ambiguous fiscal-storage closure or unimplemented marking workflows. Profile selection does not register or activate the device. The driver does not automatically retry device commands or fail over between transports.

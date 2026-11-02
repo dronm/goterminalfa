@@ -47,6 +47,7 @@ type Source struct {
 
 type CommandDefinition struct {
 	Name                string                `json:"name"`
+	ProtocolProfile     string                `json:"protocolProfile,omitempty"`
 	Aliases             []string              `json:"aliases"`
 	ProtocolCode        string                `json:"protocolCode"`
 	Category            string                `json:"category"`

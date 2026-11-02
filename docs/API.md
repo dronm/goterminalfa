@@ -7,7 +7,8 @@ The API accepts and returns UTF-8 JSON. Device protocol encoding and per-device 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/v1/commands` | Execute a standalone command or complete operation |
-| `GET` | `/api/v1/commands` | Inspect all command definitions, including unavailable entries |
+| `GET` | `/api/v1/commands` | Inspect the default base catalogue, including unavailable entries |
+| `GET` | `/api/v1/commands?deviceId=...` | Inspect the selected device's protocol-profile catalogue |
 | `GET` | `/api/v1/devices` | List configured device identities and transport types |
 | `GET` | `/api/v1/requests?deviceId=...&requestId=...` | Look up a persisted state-changing request |
 | `GET` | `/healthz` | Check process/database health |
@@ -15,6 +16,14 @@ The API accepts and returns UTF-8 JSON. Device protocol encoding and per-device 
 `/healthz` pings SQLite and returns `{"status":"ok"}` on success. It does not open serial ports, dial TCP devices, or establish KKT readiness. An unavailable journal produces HTTP `503` with `storage_error`.
 
 When configured, `http.bearerToken` requires `Authorization: Bearer YOUR_TOKEN` for `/api/v1/*` requests. `/healthz` is exempt.
+
+## Per-device protocol profiles
+
+Each configured device selects `protocolProfile: "base"` or `"ffd1.2"`; omission means `base`. This setting selects command schemas and wire layouts independently of `connection.type`. Requests continue to use `deviceId`, `cmd`, `params`, and `requestId`; callers cannot override a configured profile in the request body.
+
+`GET /api/v1/commands?deviceId=cashdesk-ffd12` returns `commands`, `deviceId`, and `protocolProfile` for that configured device. A missing, repeated, or malformed supplied ID is rejected, and an unknown device returns `404 unknown_device`. Bare `GET /api/v1/commands` preserves the base view. `GET /api/v1/devices` includes each selected profile.
+
+Base command names remain stable, but profile-specific schemas can differ for the same name/code. Query the actual device catalogue before constructing fiscal requests. [FFD12.md](FFD12.md) describes the implemented supplement subset, the 13 audited overlapping codes, added commands, inherited common commands, and unavailable workflows.
 
 ## Request and response
 
@@ -181,7 +190,7 @@ For a document read through the `0x35`/`0x36` cursor, use one complete operation
 
 The repeated step returns `data.chunks`, containing each decoded `0x36` result, and `data.byteCount`. Reads are bounded to 2048 commands and the selected document length, at most 65535 bytes. Empty progress, extra bytes, or an incomplete selected document fail the operation. See [../examples/read-document-tlv.json](../examples/read-document-tlv.json).
 
-## Receipt compatibility
+## Base receipt compatibility
 
 - `addReceiptItem` encodes an `item` object as STLV `1059`; price is integer kopecks and quantity is a decimal string.
 - VAT enum values `1`–`12` include the supplied base protocol's appendix-10 additions. New correction VAT-base fields map to tags `40007`–`40012`.
@@ -190,6 +199,18 @@ The repeated step returns `data.chunks`, containing each decoded `0x36` result, 
 - Registration-dependent addresses, device details, taxation systems, agent information, and internet-payment contact requirements remain the caller's responsibility. The catalogue states the documented conditions; it does not infer a device's registration from missing fields.
 
 The receipt example is a complete sequence with illustrative registration-dependent values. Adjust those values before deliberately submitting it to a registered device.
+
+## FFD 1.2 receipts and shifts
+
+For an `ffd1.2` device, `beginReceipt`/`beginCorrectionReceipt` accept optional `printSuppressionCode: 41029`, a two-byte value rather than the shifts' `suppressPrint` byte. Items use **`addReceiptItemUnmarked` (`0x96`) with flat named parameters**, not the base command's `item` wrapper. `paymentObject` is required; omitted `measure` is left absent so the device applies its documented pieces/units default.
+
+`setReceiptPayment` (`0x2D`) contains only `taxSystem` and the five explicit kopeck amounts in this profile and can be used for either normal or correction receipts. Customer/cashier/settlement extras use `setReceiptAdditionalData` (`0x98`). A correction requires its direct `correctedCalculationDate` UnixTime field (tag `1178`) through `0x98` before finalization; no relative order with payment is imposed by the supplement. Optional `prescriptionNumber` is direct tag `1179` and applies only to authority-ordered correction. The legacy correction-basis STLV is not used.
+
+Both finalizers take exactly `calculationSign` and `totalKopecks` with a fixed five-byte UINT40 amount. They require a 17-byte response containing `receiptNumber`, `documentNumber`, `fiscalSign`, `dateTime`, and `shiftNumber`; `additionalText`, `legacyVatRate`, and shorter base response variants do not apply.
+
+FFD shifts keep `startOpenShift`/`startCloseShift` optional `suppressPrint` behavior. `completeOpenShift`/`completeCloseShift` require 11 bytes and return `warningFlags` in addition to the three base identifiers. Optional `sendShiftOpeningData` (`0xE4`), `sendShiftClosingData` (`0xE5`), and `sendSettlementReportData` (`0xE6`) remain within their complete operation. The inherited `sendCashierData` (`0x2F`) is retained, but the supplement documents E4/E5 as its dedicated shift-data paths.
+
+The `ffd12-*` examples target `cashdesk-ffd12` and show complete shift, unmarked receipt, correction, cancellation, and settlement-report operations. They are deliberate mutation templates, not automatically executed tests against physical hardware. Settings and clock reads retain their read-only policy; `0x72`, `0x74`, `0x76`, and `0x80` are still writes requiring request IDs.
 
 ## Idempotency and recovery
 
@@ -207,6 +228,8 @@ Failures known to occur before the mutating handler starts, such as failure to o
 After restart, outstanding `in_progress` entries become `unknown`. The lookup endpoint returns completed original responses, existing in-progress/unknown states as `409`, or `404` for absent records. An unavailable journal fails before starting a newly claimed command.
 
 Keep logical device IDs assigned to the same physical KKT. Request deduplication is not proof that an uncertain fiscal document was never created: inspect and reconcile the device's state/archive before deciding how to proceed. Do not bypass an unknown result by changing the request ID.
+
+The non-default protocol profile is included in the request fingerprint. Changing an existing device from `base` to `ffd1.2` cannot silently replay a base mutation for the new wire format: the same request ID conflicts. Lookup still retrieves the earlier persisted result. Keep old unresolved outcomes for reconciliation rather than bypassing them with a profile change.
 
 ## Error responses
 

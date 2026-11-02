@@ -1,0 +1,17 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "beginReceipt",
+				"params": {}
+			},
+			{
+				"cmd": "cancelDocument",
+				"params": {}
+			}
+		]
+	},
+	"requestId": "ffd12-cancel-001"
+}

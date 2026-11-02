@@ -7,6 +7,7 @@
 | Configuration | Validate HTTP, logging, database, and per-device settings |
 | HTTP API | Decode JSON, apply authentication and limits, map results to responses |
 | Command catalogue | Define names, aliases, input/output schemas, documentation, and policy |
+| Protocol profiles | Select explicit per-device base or FFD 1.2 command definitions independently of transport |
 | Device execution | Bound waiting requests and serialize complete operations per physical KKT |
 | Operation executor | Validate full workflows and execute ordered commands under one device gate |
 | Protocol/codec | Encode CP866, integers, exact decimals, TLV/STLV, and CRC-framed packets |
@@ -21,6 +22,8 @@ Each configured device has its own logical ID, connection settings, execution ga
 Only one active controller should operate a physical KKT, even when separate processes use different database files or address it over different transports. The journal process lock does not provide a cross-database hardware lock. Configuration rejects duplicate IDs, expected serials, serial paths, and TCP endpoints. Existing serial symlinks are resolved where possible; absent paths, DNS aliases, and mixed transports cannot always be compared by eventual physical identity.
 
 Keep logical IDs assigned to the same physical KKT across restarts. Remapping an ID remaps its journal scope; renaming an ID creates a different scope.
+
+Each device also selects `protocolProfile`, with `base` as the default. Profile resolution occurs before command validation and execution. A device-specific catalogue exposes the exact schemas; the unqualified discovery endpoint remains the base catalogue for existing clients. Selecting `ffd1.2` changes only the documented selected command definitions and adds supported supplement operations; it does not infer or modify the KKT's fiscal registration or activation.
 
 When an expected factory serial is configured, state-changing execution verifies identity before invoking its mutating handler. Serial verification and mutation use the same physical session. For TCP, verification is a separate command connection to the configured endpoint; it is not proof that every later socket reaches the same device if that endpoint changes. Use a static IP or a DHCP reservation, and keep the endpoint assigned to one physical KKT. The serial-number query itself also rejects an unexpected result. Identity checks distinguish the KKT factory serial from its USB descriptor serial.
 
@@ -66,13 +69,15 @@ SQLite atomically claims `(deviceId, requestId)`, storing canonical command/para
 
 A changed payload under an existing identity is a conflict. A matching completed result is replayed even if an alias was used in the original request. A batch failure after successful state-changing work remains unknown even when the later step returned a definite rejection.
 
+Non-base fingerprints include the protocol profile, while base fingerprints retain their existing format. Thus a request ID claimed under base cannot be silently reused for a changed FFD wire definition after reconfiguration. The lookup endpoint can still return the earlier result for reconciliation.
+
 A process lock beside the database protects recovery from another service instance using that journal. Startup marks interrupted `in_progress` records unknown rather than assuming failure. A disconnected caller does not cancel completed effects; result persistence has its own bounded context after execution.
 
 The journal is not a durable asynchronous work queue. Requests execute synchronously with bounded in-process waiting. Unknown fiscal outcomes require reconciliation against the KKT state and document archive before further action.
 
 ## Catalogue scope and compatibility
 
-The catalogue lists all 72 commands in the supplied base protocol: 68 implemented and four unavailable. The application commands `executeOperation` and `syncDateTime` bring discovery to 74 entries. Unavailable definitions state why they cannot be encoded safely; the separate FFD 1.2 supplement is not mixed into conflicting base-protocol command numbers.
+The default base catalogue lists all 72 commands in the supplied base protocol: 68 implemented and four unavailable. The application commands `executeOperation` and `syncDateTime` bring base discovery to 74 entries. The explicit `ffd1.2` catalogue overrides audited overlapping definitions, adds unmarked-item and supplementary-data commands, and blocks superseded base fiscal payloads. [FFD12.md](FFD12.md) records its source audit and supported subset; it does not claim full marking or fiscal-storage closure support.
 
 `syncDateTime` validates only an empty parameter object before queueing. It samples the Go process's local wall clock at runtime inside the device gate, after any configured identity check, rather than during request prevalidation. The sampled minute-precision value is encoded through the standard `setDateTime` (`0x72`, TLV `30000`) path and written once. Its request ID and result use the existing mutation journal; replay returns the previous timestamp without resampling or another device write. The process clock and local timezone determine the value, with no browser/caller timezone conversion or scheduled synchronization.
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -148,6 +149,20 @@ func TestDocumentedExamplesValidateAgainstCatalogue(t *testing.T) {
 	}
 	for _, path := range paths {
 		t.Run(filepath.Base(path), func(t *testing.T) {
+			lookup := lookup
+			if strings.HasPrefix(filepath.Base(path), "ffd12-") {
+				commands, err := BuiltinCommandsForProfile("ffd1.2")
+				if err != nil {
+					t.Fatal(err)
+				}
+				lookup = make(map[string]Command)
+				for _, cmd := range commands {
+					lookup[cmd.Definition.Name] = cmd
+					for _, alias := range cmd.Definition.Aliases {
+						lookup[alias] = cmd
+					}
+				}
+			}
 			raw, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)

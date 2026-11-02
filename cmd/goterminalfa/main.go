@@ -21,7 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const version = "0.5.0"
+const version = "0.6.0"
 
 func main() {
 	if err := run(); err != nil {
@@ -93,7 +93,9 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("configure %s: %w", d.ID, err)
 		}
-		devices = append(devices, service.NewDevice(d.ID, d.Connection.Type, d.ExpectedSerialNumber, client, d.QueueSize))
+		device := service.NewDevice(d.ID, d.Connection.Type, d.ExpectedSerialNumber, client, d.QueueSize)
+		device.ProtocolProfile = d.ProtocolProfile
+		devices = append(devices, device)
 	}
 	app, err := service.New(devices, service.BuiltinCommands(), journal, logger)
 	if err != nil {

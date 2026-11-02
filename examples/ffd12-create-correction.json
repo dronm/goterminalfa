@@ -1,0 +1,50 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "beginCorrectionReceipt",
+				"params": {
+					"printSuppressionCode": 41029
+				}
+			},
+			{
+				"cmd": "addReceiptItemUnmarked",
+				"params": {
+					"name": "Example item",
+					"priceKopecks": 10000,
+					"quantity": "1",
+					"vatRate": 6,
+					"paymentMethod": 4,
+					"paymentObject": 1
+				}
+			},
+			{
+				"cmd": "setReceiptAdditionalData",
+				"params": {
+					"correctedCalculationDate": 1704067200
+				}
+			},
+			{
+				"cmd": "setReceiptPayment",
+				"params": {
+					"taxSystem": 1,
+					"cashKopecks": 10000,
+					"cashlessKopecks": 0,
+					"prepaymentKopecks": 0,
+					"creditKopecks": 0,
+					"counterProvisionKopecks": 0
+				}
+			},
+			{
+				"cmd": "finalizeCorrectionReceipt",
+				"params": {
+					"calculationSign": 1,
+					"totalKopecks": 10000
+				}
+			}
+		]
+	},
+	"requestId": "ffd12-correction-001"
+}

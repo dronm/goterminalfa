@@ -63,6 +63,7 @@ type Database struct {
 
 type Device struct {
 	ID                   string     `json:"id"`
+	ProtocolProfile      string     `json:"protocolProfile,omitempty"`
 	ExpectedSerialNumber string     `json:"expectedSerialNumber"`
 	QueueSize            int        `json:"queueSize"`
 	Connection           Connection `json:"connection"`
@@ -152,6 +153,12 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("device %d has an invalid or duplicate id %q", i, d.ID)
 		}
 		ids[d.ID] = true
+		if d.ProtocolProfile == "" {
+			d.ProtocolProfile = "base"
+		}
+		if d.ProtocolProfile != "base" && d.ProtocolProfile != "ffd1.2" {
+			return fmt.Errorf("device %s protocolProfile must be base or ffd1.2", d.ID)
+		}
 		if d.ExpectedSerialNumber != "" {
 			if !factorySerial.MatchString(d.ExpectedSerialNumber) || serials[d.ExpectedSerialNumber] {
 				return fmt.Errorf("device %s has an invalid or duplicate expectedSerialNumber", d.ID)

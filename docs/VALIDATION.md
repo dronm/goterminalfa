@@ -1,6 +1,6 @@
 # Validation
 
-Version 0.5.0 was validated on Linux amd64 with Go 1.25.3. The module requires Go 1.23 or newer. These checks passed:
+Version 0.6.0 was validated on Linux amd64 with Go 1.25.3. The module requires Go 1.23 or newer. These checks passed:
 
 ```bash
 go test -race ./...
@@ -10,7 +10,7 @@ CGO_ENABLED=0 go build ./cmd/goterminalfa
 
 Normal builds use the pure-Go SQLite driver. Race detection has the Go toolchain's separate C compiler requirement.
 
-- The catalogue covers all 72 command codes listed in the supplied base protocol: 68 implemented and four explicitly unavailable because the base protocol omits their payload definitions. The application commands `executeOperation` and `syncDateTime` bring discovery to 74 entries.
+- The unchanged default base catalogue covers all 72 command codes listed in the base protocol: 68 implemented and four explicitly unavailable. The two application commands bring base discovery to 74 entries. The explicit FFD 1.2 catalogue contains 79 entries: 65 implemented wire commands, 12 explicitly unavailable entries, and the same two application commands.
 - Request/response tests cover each command group, positional and TLV/STLV data, CP866 byte lengths, exact integer and decimal values, calendar dates, conditional fields, repeated tags, historical response lengths, and the amendments in Appendix 10.
 - Workflow tests cover complete fiscal sequences, serial session ownership, per-device exclusivity, print-buffer consumption by receipt finalization, registration reason consistency, and bounded archive draining.
 - SQLite tests cover canonical request persistence, exact response replay, conflicts, concurrent duplicates, startup recovery, definite pre-execution failures, and unknown outcomes that cannot be automatically repeated.
@@ -20,6 +20,8 @@ Normal builds use the pure-Go SQLite driver. Race detection has the Go toolchain
 - Deterministic clock-sync tests cover runtime sampling after queue waiting and identity verification, a non-UTC timezone near midnight, dropped seconds, exact `0x72`/TLV `30000` encoding, and supported year boundaries 2000/2255. Unsupported years 1999/2256 produce a definite failure without a clock write.
 - Clock-sync replay tests verify no resampling or device call for a repeated request ID, durable replay through a new service/catalogue, and a fresh sample for a new intended request ID. Device rejection, definite unsent failure, lost replies, and timeouts retain the expected journal states.
 - Clock-sync operation tests cover mutation tracking and rejection of an invalid later step before clock sampling or device traffic. HTTP tests cover public validation, command discovery, and replay.
+- FFD profile tests cover default-base compatibility, per-device catalogue selection, profile-aware fingerprints, strict shift/receipt result sizes, flat unmarked item TLVs, additional receipt/correction data, optional shift/report data, and rejection of superseded legacy fiscal formats.
+- The supplement's 13 overlapping command bytes and implemented additions are audited in [FFD12.md](FFD12.md). Registration, marking, and ambiguous closure workflows remain outside the implemented subset; tests do not treat the profile as full supplement coverage.
 
 ## Command and serial coverage
 
@@ -38,11 +40,11 @@ The automated suite and serial simulations use temporary databases, Linux pseudo
 - CP866 settings text, exact cash amounts, mutation replay without extra wire commands, and conflicting request parameters.
 - Restricting a switch to Ethernet control to the final batch step, plus a lost switch response recorded as unknown and blocked from repetition.
 
-All 18 supplied JSON command examples passed catalogue/workflow validation using a guaranteed nonexistent serial path. The serial, TCP, and mixed configuration examples also passed actual server startup checks without opening a device connection. These checks do not transmit physical commands. State-changing templates have not been executed against a registered KKT.
+All 27 supplied JSON command examples passed catalogue/workflow validation: 18 base examples and nine FFD-specific examples. The serial, TCP, mixed, and FFD configuration examples also passed actual server startup checks without opening a device connection. These checks do not transmit physical commands. State-changing templates have not been executed against a registered KKT.
 
-## Mixed serial/TCP end-to-end simulation
+## Mixed serial/TCP transport coverage
 
-A compiled version 0.5.0 server passed a mixed-device simulation using the real serial library against a Linux pseudo-terminal and raw TCP against a loopback fake KKT. It verified:
+Transport tests and compiled mixed-device simulations use the real serial library against Linux pseudo-terminals and raw TCP against loopback fake KKT devices. Coverage includes:
 
 - No device connection during startup, correct transport types in device discovery, and unchanged `ID` requests over both transports.
 - TCP identity verification on its own command connection before mutation, a fresh connection for every command, and fragmented response handling without waiting for the peer to close its socket.
@@ -55,9 +57,22 @@ A compiled version 0.5.0 server passed a mixed-device simulation using the real 
 - `syncDateTime` worked over both serial and TCP with the Go process running under `TZ=Asia/Yekaterinburg`: its minute-precision payload and returned timestamp matched the current server-local target, and replay caused no additional wire commands.
 - Graceful shutdown on `SIGTERM`.
 
-TCP unit tests additionally cover short writes, zero-byte unsent failures, dial and whole-exchange deadlines, cancellation, connection cleanup, protocol rejection, and invalid configuration. The final command catalogue was exported through the compiled server's HTTP API and contains 74 entries: 68 implemented wire commands, four explicitly unavailable definitions, and two application commands.
+TCP unit tests additionally cover short writes, zero-byte unsent failures, dial and whole-exchange deadlines, cancellation, connection cleanup, protocol rejection, and invalid configuration. Both final catalogues were exported through the compiled server's HTTP API: [commands.json](commands.json) preserves the base view and [commands-ffd12.json](commands-ffd12.json) contains the selected FFD view.
 
 The TCP command stream is raw KKT protocol data, not an HTTP exchange with the device. Loopback TCP simulations and serial pseudo-terminals do not establish physical LAN compatibility; follow [LAN.md](LAN.md) for a read-only hardware acceptance check.
+
+## FFD 1.2 compiled-server simulation
+
+A compiled version 0.6.0 server passed a simulation with an FFD serial device, an FFD TCP device, and a base TCP device configured together. The run verified:
+
+- Requested opening/closing sequences with inherited `0x2F`, exact 11-byte FFD completions, preserved `warningFlags`, and fresh `0x20` reads.
+- Optional receipt printing suppression as UINT16 `41029`, flat CP866 unmarked-item TLVs through `0x96`, FFD payment data, and strict 17-byte finalization results.
+- Complete correction with `0x98` after payment, confirming that the driver imposes no unsupported payment/additional-data ordering constraint while still requiring the correction date before finalization.
+- Optional E4/E5/E6 report details, inherited cancellation, and continued mutation policy for clock/network/OFD/control setters `0x72`/`0x74`/`0x76`/`0x80`.
+- Pre-wire rejection of invalid legacy parameters, base-profile `0x96` returning unknown-command, and FFD-profile `0x2B` returning unavailable-command. Base shift completions retained their ten-byte format.
+- Exact mutation replay without extra wire traffic, lost finalization replies becoming unknown and blocking repeats, journal state persistence, a fresh connection per TCP command, and graceful shutdown.
+
+Focused HTTP tests also passed for device-specific catalogue/error behavior and malformed base-length replies on FFD operations retaining a durable unknown outcome.
 
 ## Hardware boundary
 
