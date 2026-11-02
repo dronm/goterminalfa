@@ -85,7 +85,7 @@ func Load(path string) (Config, error) {
 	c := Config{
 		HTTP: HTTP{
 			Listen: "127.0.0.1:8080", ReadHeaderTimeout: Duration(5 * time.Second),
-			RequestTimeout: Duration(30 * time.Second), ShutdownTimeout: Duration(35 * time.Second),
+			RequestTimeout: Duration(30 * time.Second), ShutdownTimeout: Duration(65 * time.Second),
 			MaxBodyBytes: 65536,
 		},
 		Logging:  Logging{Level: "info", Format: "json"},

@@ -332,8 +332,25 @@ func (s *Service) Execute(ctx context.Context, req Request) Reply {
 		var rejection *protocol.DeviceError
 		var notExecuted *NotExecutedError
 		var notSent *terminalfa.CommandNotSentError
-		unknown := execErr != nil && !errors.As(execErr, &rejection) && !errors.As(execErr, &notExecuted) && !errors.As(execErr, &notSent)
+		var receiptFailure *createReceiptError
+		hasReceiptFailure := errors.As(execErr, &receiptFailure)
+		unknown := false
+		if hasReceiptFailure {
+			// A receipt may have failed definitively after confirmed cleanup, or
+			// may remain uncertain despite a later cancellation acknowledgement.
+			// Its explicit outcome takes precedence over generic error chains.
+			unknown = receiptFailure.Unknown
+		} else {
+			unknown = execErr != nil && !errors.As(execErr, &rejection) && !errors.As(execErr, &notExecuted) && !errors.As(execErr, &notSent)
+		}
 		if unknown || response.HTTPStatus == 500 {
+			if hasReceiptFailure && receiptFailure.Unknown && response.HTTPStatus != 500 {
+				if err := s.journal.MarkUnknownWithResponse(persistCtx, req.DeviceID, req.RequestID, response.Body); err != nil {
+					s.logger.WithError(err).Error("persist receipt unknown outcome failed; claim retained")
+					return unknownReply(req)
+				}
+				return response
+			}
 			if err := s.journal.MarkUnknown(persistCtx, req.DeviceID, req.RequestID); err != nil {
 				s.logger.WithError(err).Error("persist unknown outcome failed; claim retained")
 			}
@@ -380,6 +397,12 @@ func executeSafely(ctx context.Context, cmd Command, d *Device, params json.RawM
 	if err != nil && !started {
 		return nil, &NotExecutedError{Cause: err}
 	}
+	if err != nil && started && cmd.OnError != nil {
+		// The primary physical session has fully unwound. Preserve operation
+		// ownership, but let the hook choose a bounded cleanup context and open
+		// a fresh session instead of reusing a canceled or poisoned stream.
+		return cmd.OnError(ctx, d, data, err)
+	}
 	return data, err
 }
 
@@ -398,10 +421,13 @@ func (e *IdentityError) Error() string {
 }
 
 func executionFailure(req Request, err error) Reply {
+	var receiptFailure *createReceiptError
 	var rejection *protocol.DeviceError
 	var identity *IdentityError
 	var serial *terminalfa.InvalidSerialError
 	switch {
+	case errors.As(err, &receiptFailure):
+		return createReceiptFailure(req, receiptFailure)
 	case errors.As(err, &rejection):
 		return JSONReply(502, Response{DeviceID: req.DeviceID, Command: req.Command, RequestID: req.RequestID,
 			Status: "failed", Error: &Error{Code: "device_error", Message: err.Error(), DeviceCode: &rejection.Code}})
@@ -428,6 +454,11 @@ func recordedReply(req Request, record store.Record) Reply {
 	case store.StateInProgress:
 		return JSONReply(409, Response{DeviceID: req.DeviceID, Command: req.Command, RequestID: req.RequestID,
 			Status: "in_progress", Error: &Error{Code: "request_in_progress", Message: "operation is already in progress"}})
+	case store.StateUnknown:
+		if len(record.Response) != 0 {
+			return Reply{HTTPStatus: http.StatusConflict, Body: record.Response, Replayed: true}
+		}
+		return unknownReply(req)
 	default:
 		return unknownReply(req)
 	}

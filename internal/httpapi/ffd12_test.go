@@ -97,7 +97,7 @@ func TestFFD12HTTPSelectsCataloguePerDevice(t *testing.T) {
 	}{
 		{"/api/v1/commands", "", "", 74},
 		{"/api/v1/commands?deviceId=base-kkt", "base", "base-kkt", 74},
-		{"/api/v1/commands?deviceId=ffd-kkt", "ffd1.2", "ffd-kkt", 79},
+		{"/api/v1/commands?deviceId=ffd-kkt", "ffd1.2", "ffd-kkt", 80},
 	} {
 		t.Run(test.path, func(t *testing.T) {
 			w := request(t, api, http.MethodGet, test.path, "", "", "")

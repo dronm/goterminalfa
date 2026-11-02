@@ -21,7 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const version = "0.6.0"
+const version = "0.7.0"
 
 func main() {
 	if err := run(); err != nil {
@@ -114,7 +114,7 @@ func run() error {
 		Handler:           httpapi.New(app, cfg.HTTP, logger),
 		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout.Value(),
 		ReadTimeout:       cfg.HTTP.RequestTimeout.Value(),
-		WriteTimeout:      cfg.HTTP.RequestTimeout.Value() + 10*time.Second,
+		WriteTimeout:      cfg.HTTP.RequestTimeout.Value() + 35*time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    16384,
 		ErrorLog:          log.New(logWriter, "", 0),

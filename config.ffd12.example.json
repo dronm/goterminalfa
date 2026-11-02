@@ -3,7 +3,7 @@
 		"listen": "127.0.0.1:8080",
 		"readHeaderTimeout": "5s",
 		"requestTimeout": "60s",
-		"shutdownTimeout": "65s",
+		"shutdownTimeout": "95s",
 		"maxBodyBytes": 65536,
 		"bearerToken": ""
 	},

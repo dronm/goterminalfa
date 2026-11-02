@@ -114,7 +114,7 @@ func ffd12OperationDefinition(t *testing.T) Command {
 
 func TestFFD12RealCatalogueWorkflowsValidate(t *testing.T) {
 	op := ffd12OperationDefinition(t)
-	if op.Definition.Source.Version != "0.6.0" {
+	if op.Definition.Source.Version == "" || op.Definition.Source.Document != "goterminalfa HTTP API" {
 		t.Fatalf("operation metadata version=%q", op.Definition.Source.Version)
 	}
 	for _, raw := range []string{

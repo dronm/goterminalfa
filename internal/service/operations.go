@@ -72,7 +72,7 @@ func operationCommand(commands []Command) Command {
 				}}},
 			Output: []ParameterDefinition{{Name: "results", JSONType: "array", Required: true,
 				Description: "Ordered command results. A repeated archive-read result contains chunks and byteCount."}},
-			Source: Source{Document: "goterminalfa HTTP API", Version: "0.6.0"},
+			Source: Source{Document: "goterminalfa HTTP API", Version: "0.7.0"},
 		},
 		Canonicalize: func(raw json.RawMessage) (json.RawMessage, error) {
 			steps, err := parse(raw)
@@ -148,6 +148,9 @@ func parseOperation(raw json.RawMessage, lookup map[string]Command) ([]operation
 			return nil, fmt.Errorf("commands[%d]: command %q is unavailable", index, step.Command)
 		}
 		step.Command = cmd.Definition.Name
+		if cmd.OnError != nil {
+			return nil, fmt.Errorf("commands[%d]: %s owns its complete operation and cannot be nested in executeOperation", index, cmd.Definition.Name)
+		}
 		step.resolved = cmd
 		step.Params, err = canonicalParams(step.Params)
 		if err != nil {

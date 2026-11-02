@@ -6,7 +6,7 @@ Read-only commands perform fresh device queries and are not journaled. State-cha
 
 Use `GET /api/v1/commands` for the current full definitions. [commands.json](commands.json) is an exported snapshot with all input/output schemas, TLV tags, exact types, enums, flags, preconditions, notes, and original Russian descriptions. [API.md](API.md) explains request formats and execution semantics.
 
-For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 79 entries contain 65 implemented wire commands, 12 explicitly unavailable entries, and the two application commands. [FFD12.md](FFD12.md) contains the full supplement audit matrix, new `0x96`/`0x98`/`0xE4`/`0xE5`/`0xE6` definitions, inherited commands, and remaining scope limits. Do not use the base table as a substitute for that device's actual schemas.
+For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 80 entries contain 65 implemented wire commands, 12 explicitly unavailable entries, and three application commands, including the FFD-only `createReceipt`. [FFD12.md](FFD12.md) contains the full supplement audit matrix, new `0x96`/`0x98`/`0xE4`/`0xE5`/`0xE6` definitions, inherited commands, and remaining scope limits. Do not use the base table as a substitute for that device's actual schemas.
 
 | Code | Canonical command | Category | Policy | Invocation | Protocol 01.05 page |
 | --- | --- | --- | --- | --- | --- |
@@ -89,8 +89,9 @@ For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the
 | --- | --- | --- |
 | `executeOperation` | Ordered `commands` array | Executes a complete validated sequence under one device gate and one durable request ID; returns ordered results |
 | `syncDateTime` | Empty object `{}` | Samples the Go server's local clock after queue waiting and any configured identity verification, drops seconds, and writes `0x72`/TLV `30000`; returns the sent `dateTime` |
+| `createReceipt` (FFD only) | Cashier, items, optional payment/additional data, calculation sign, and total | Checks shift state, conditionally opens a shift, creates the receipt, and reports any confirmed-document cleanup on failure |
 
-Both application commands require a request ID and have no command byte of their own. A batch containing only reads still has operation-level persistence. Repeating a completed `syncDateTime` request ID replays its saved timestamp rather than synchronizing again; use a new ID for each intended synchronization. Its timezone is the Go server process's local timezone, which can be set with `TZ`; no automatic schedule is created.
+All application commands require a request ID and have no command byte of their own. `createReceipt` is registered only in the FFD profile and cannot be nested in `executeOperation`; the base catalogue remains unchanged. A batch containing only reads still has operation-level persistence. Repeating a completed `syncDateTime` request ID replays its saved timestamp rather than synchronizing again; use a new ID for each intended synchronization. Its timezone is the Go server process's local timezone, which can be set with `TZ`; no automatic schedule is created.
 
 Every protocol command accepts its registered numeric alias, for example `0x03`, and lettered hexadecimal aliases such as `0x2B`/`0x2b`. `getSerialNumber` additionally accepts `ID`.
 

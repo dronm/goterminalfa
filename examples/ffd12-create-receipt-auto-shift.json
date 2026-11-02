@@ -1,0 +1,31 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "createReceipt",
+	"requestId": "ffd12-auto-shift-receipt-001",
+	"params": {
+		"cashierName": "Cashier",
+		"items": [
+			{
+				"name": "Example item",
+				"priceKopecks": 10000,
+				"quantity": "1",
+				"vatRate": 6,
+				"paymentMethod": 4,
+				"paymentObject": 1
+			}
+		],
+		"additionalData": {
+			"cashierName": "Cashier"
+		},
+		"payment": {
+			"taxSystem": 1,
+			"cashKopecks": 10000,
+			"cashlessKopecks": 0,
+			"prepaymentKopecks": 0,
+			"creditKopecks": 0,
+			"counterProvisionKopecks": 0
+		},
+		"calculationSign": 1,
+		"totalKopecks": 10000
+	}
+}

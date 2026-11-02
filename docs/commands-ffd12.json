@@ -5835,7 +5835,1061 @@
 			],
 			"source": {
 				"document": "goterminalfa HTTP API",
-				"version": "0.6.0",
+				"version": "0.7.0",
+				"page": 0
+			}
+		},
+		{
+			"name": "createReceipt",
+			"protocolProfile": "ffd1.2",
+			"aliases": [],
+			"protocolCode": "",
+			"category": "operations",
+			"titleRu": "Создать чек с автоматическим открытием смены",
+			"description": "Check shift state, open it with 0x21/0x2F/0x22 when closed, and create an unmarked FFD 1.2 receipt with 0x23, one 0x96 per item, optional additional/payment data, and 0x24. On error attempt 0x10 only for a document confirmed opened by this operation. One device gate and requestId cover execution and recovery.",
+			"descriptionRu": "Проверить смену 0x20, при необходимости открыть ее командами 0x21, 0x2F, 0x22, затем сформировать чек командами 0x23, 0x96, при наличии данных 0x98 и 0x2D, и 0x24. При ошибке отменить документ 0x10 только если его открытие подтверждено в данной операции. Неопределенный результат фискализации не считается отмененным после успешной команды 0x10.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "application",
+			"responseLayout": "application",
+			"input": [
+				{
+					"name": "cashierName",
+					"titleRu": "ФИО Кассира",
+					"description": "Cashier's full name, at most 64 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": true,
+					"tag": 1021
+				},
+				{
+					"name": "cashierInn",
+					"titleRu": "ИНН Кассира",
+					"description": "Optional cashier INN; if present, exactly twelve decimal digits.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": false,
+					"tag": 1203
+				},
+				{
+					"name": "suppressShiftPrint",
+					"titleRu": "Формировать отчет без вывода на печать",
+					"description": "Optional byte: 0 print the report; 1 suppress printing. Omission means printing and remains an omitted wire byte.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Print report",
+						"1": "Do not print report"
+					},
+					"notes": "The protocol's default on omission is printing; no byte is inserted automatically."
+				},
+				{
+					"name": "printSuppressionCode",
+					"titleRu": "Необязательный параметр управления печатной формой",
+					"description": "Необязательный параметр управления печатной формой",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": false,
+					"enum": {
+						"41029": "Не формировать печатную форму документа"
+					},
+					"notes": "Optional UINT16 LE. The documented value 41029 suppresses the printed form; omit for normal printing. Other numeric values are not assigned a documented meaning."
+				},
+				{
+					"name": "items",
+					"titleRu": "",
+					"description": "Unmarked items using the flat 0x96 schema.",
+					"jsonType": "array",
+					"wireType": "APPLICATION",
+					"required": true,
+					"minItems": 1,
+					"maxItems": 200,
+					"children": [
+						{
+							"name": "name",
+							"titleRu": "Наименование предмета расчета",
+							"description": "Наименование предмета расчета",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 128,
+							"required": true,
+							"tag": 1030
+						},
+						{
+							"name": "priceKopecks",
+							"titleRu": "Цена за единицу с учетом скидок и наценок",
+							"description": "Цена за единицу с учетом скидок и наценок",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": true,
+							"tag": 1079,
+							"unit": "kopecks"
+						},
+						{
+							"name": "quantity",
+							"titleRu": "Количество предмета расчета",
+							"description": "Количество предмета расчета",
+							"jsonType": "string",
+							"wireType": "FVLN",
+							"required": true,
+							"tag": 1023,
+							"notes": "Exact non-negative decimal string, not a floating-point JSON number."
+						},
+						{
+							"name": "measure",
+							"titleRu": "Мера количества предмета расчета",
+							"description": "Мера количества предмета расчета",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": false,
+							"tag": 2108,
+							"enum": {
+								"0": "Штуки, единицы",
+								"10": "Г",
+								"11": "Кг",
+								"12": "Т",
+								"20": "См",
+								"21": "Дм",
+								"22": "М",
+								"255": "Иные случаи",
+								"30": "Кв. см",
+								"31": "Кв. дм",
+								"32": "Кв. м",
+								"40": "Мл",
+								"41": "Л",
+								"42": "Куб. м",
+								"50": "КВт ч",
+								"51": "Гкал",
+								"70": "Сутки",
+								"71": "Час",
+								"72": "Минута",
+								"73": "Секунда",
+								"80": "Кбайт",
+								"81": "Мбайт",
+								"82": "Гбайт",
+								"83": "Тбайт"
+							},
+							"notes": "Omission is preserved on the wire; the KKT assigns documented default 0 (pieces/units)."
+						},
+						{
+							"name": "vatRate",
+							"titleRu": "Ставка НДС",
+							"description": "Ставка НДС",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"tag": 1199,
+							"enum": {
+								"1": "НДС 20%",
+								"10": "НДС расч. 7/107",
+								"11": "НДС 22%",
+								"12": "НДС расч. 22/122",
+								"2": "НДС 10%",
+								"3": "НДС расч. 20/120",
+								"4": "НДС расч. 10/110",
+								"5": "НДС 0%",
+								"6": "Без НДС",
+								"7": "НДС 5%",
+								"8": "НДС 7%",
+								"9": "НДС расч. 5/105"
+							}
+						},
+						{
+							"name": "paymentMethod",
+							"titleRu": "Признак способа расчета",
+							"description": "Признак способа расчета",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"tag": 1214,
+							"min": 1,
+							"max": 7
+						},
+						{
+							"name": "paymentObject",
+							"titleRu": "Признак предмета расчета",
+							"description": "Признак предмета расчета",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"tag": 1212,
+							"enum": {
+								"1": "Товар",
+								"10": "Аванс, задаток, предоплата, кредит",
+								"11": "Вознаграждение агента",
+								"12": "Взнос, пени, штраф, вознаграждение, бонус",
+								"13": "Иной предмет расчета",
+								"14": "Имущественные права",
+								"15": "Внереализационный доход",
+								"16": "Расходы, уменьшающие налог",
+								"17": "Торговый сбор",
+								"18": "Курортный сбор",
+								"19": "Залог",
+								"2": "Подакцизный товар",
+								"20": "Расходы, уменьшающие доход",
+								"21": "Взносы ОПС ИП",
+								"22": "Взносы ОПС организаций и ИП",
+								"23": "Взносы ОМС ИП",
+								"24": "Взносы ОМС организаций и ИП",
+								"25": "Взносы социального страхования",
+								"26": "Обменные знаки игорного заведения",
+								"27": "Выдача денег банковским платежным агентом",
+								"3": "Работа",
+								"30": "Маркируемый подакцизный товар без кода маркировки",
+								"31": "Маркируемый подакцизный товар с кодом маркировки",
+								"32": "Маркируемый товар без кода маркировки",
+								"33": "Маркируемый товар с кодом маркировки",
+								"4": "Услуга",
+								"5": "Ставка в азартной игре",
+								"6": "Выигрыш в азартной игре",
+								"7": "Лотерея",
+								"8": "Выигрыш в лотерее",
+								"9": "Права на результаты интеллектуальной деятельности"
+							}
+						},
+						{
+							"name": "barcode",
+							"titleRu": "Штрих-код товара",
+							"description": "Штрих-код товара",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 256,
+							"required": false,
+							"tag": 2000
+						},
+						{
+							"name": "exciseKopecks",
+							"titleRu": "Акциз",
+							"description": "Акциз",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": false,
+							"tag": 1229,
+							"unit": "kopecks"
+						},
+						{
+							"name": "customsDeclaration",
+							"titleRu": "Номер таможенной декларации",
+							"description": "Номер таможенной декларации",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 32,
+							"required": false,
+							"tag": 1231
+						},
+						{
+							"name": "countryCode",
+							"titleRu": "Код страны",
+							"description": "Код страны",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"fixedLength": 3,
+							"maxLength": 3,
+							"required": false,
+							"tag": 1230,
+							"padding": "space"
+						},
+						{
+							"name": "additionalItemProperty",
+							"titleRu": "Дополнительный реквизит предмета расчета",
+							"description": "Дополнительный реквизит предмета расчета",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 64,
+							"required": false,
+							"tag": 1191
+						},
+						{
+							"name": "agentSign",
+							"titleRu": "Признак агента по предмету расчета",
+							"description": "Признак агента по предмету расчета",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": false,
+							"tag": 1222,
+							"enum": {
+								"0": "Не является агентом",
+								"1": "Банковский платежный агент",
+								"16": "Поверенный",
+								"2": "Банковский платежный субагент",
+								"32": "Комиссионер",
+								"4": "Платежный агент",
+								"64": "Агент",
+								"8": "Платежный субагент"
+							}
+						},
+						{
+							"name": "transferOperatorPhones",
+							"titleRu": "Телефон оператора перевода",
+							"description": "Телефон оператора перевода",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1075,
+							"repeated": true,
+							"minItems": 1,
+							"notes": "Optional tag (* in the supplement); applicable to banking payment agents and banking payment subagents."
+						},
+						{
+							"name": "transferOperation",
+							"titleRu": "Операция платежного агента",
+							"description": "Операция платежного агента",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 63,
+							"required": false,
+							"tag": 1044,
+							"notes": "Optional tag (* in the supplement); applicable to banking payment agents and banking payment subagents."
+						},
+						{
+							"name": "paymentAgentPhones",
+							"titleRu": "Телефон платежного агента",
+							"description": "Телефон платежного агента",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1073,
+							"repeated": true,
+							"minItems": 1,
+							"notes": "Optional tag (* in the supplement); applicable to payment agents and payment subagents."
+						},
+						{
+							"name": "paymentAcceptancePhones",
+							"titleRu": "Телефон оператора по приему платежей",
+							"description": "Телефон оператора по приему платежей",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1074,
+							"repeated": true,
+							"minItems": 1,
+							"notes": "Optional tag (* in the supplement); applicable to payment agents and payment subagents."
+						},
+						{
+							"name": "transferOperatorName",
+							"titleRu": "Наименование оператора перевода",
+							"description": "Наименование оператора перевода",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 127,
+							"required": false,
+							"tag": 1026,
+							"notes": "Optional tag (* in the supplement); applicable to banking payment agents and banking payment subagents."
+						},
+						{
+							"name": "transferOperatorAddress",
+							"titleRu": "Адрес оператора перевода",
+							"description": "Адрес оператора перевода",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 164,
+							"required": false,
+							"tag": 1005,
+							"notes": "Optional tag (* in the supplement); applicable to banking payment agents and banking payment subagents."
+						},
+						{
+							"name": "transferOperatorINNs",
+							"titleRu": "ИНН оператора перевода",
+							"description": "ИНН оператора перевода",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 12,
+							"required": false,
+							"tag": 1016,
+							"repeated": true,
+							"minItems": 1,
+							"notes": "Optional tag (* in the supplement); applicable to banking payment agents and banking payment subagents."
+						},
+						{
+							"name": "supplierPhones",
+							"titleRu": "Телефон поставщика",
+							"description": "Телефон поставщика",
+							"jsonType": "array",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1171,
+							"repeated": true,
+							"minItems": 1,
+							"notes": "Optional tag (* in the supplement); applicable to all agent roles."
+						},
+						{
+							"name": "supplierName",
+							"titleRu": "Наименование поставщика",
+							"description": "Наименование поставщика",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 64,
+							"required": false,
+							"tag": 1225,
+							"notes": "Optional tag (* in the supplement); applicable to all agent roles."
+						},
+						{
+							"name": "supplierINN",
+							"titleRu": "ИНН поставщика",
+							"description": "ИНН поставщика",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"fixedLength": 12,
+							"maxLength": 12,
+							"required": false,
+							"tag": 1226,
+							"requiredIf": "agentSign is nonzero; required for all agent roles",
+							"padding": "space"
+						},
+						{
+							"name": "industryFields",
+							"titleRu": "Отраслевой реквизит предмета расчета",
+							"description": "Repeated industry STLV 1260; every entry contains all four child tags.",
+							"jsonType": "array",
+							"wireType": "STLV",
+							"required": false,
+							"tag": 1260,
+							"repeated": true,
+							"minItems": 1,
+							"children": [
+								{
+									"name": "authority",
+									"titleRu": "Идентификатор органа власти",
+									"description": "Authority identifier from appendix 1; integer 1–72.",
+									"jsonType": "integer",
+									"wireType": "BYTE",
+									"required": true,
+									"tag": 1262,
+									"min": 1,
+									"max": 72
+								},
+								{
+									"name": "documentDate",
+									"titleRu": "Дата документа основания",
+									"description": "Calendar date in DD.MM.YYYY format.",
+									"jsonType": "string",
+									"wireType": "ASCII",
+									"encoding": "CP866",
+									"fixedLength": 10,
+									"required": true,
+									"tag": 1263
+								},
+								{
+									"name": "documentNumber",
+									"titleRu": "Номер документа основания",
+									"description": "Номер документа основания",
+									"jsonType": "string",
+									"wireType": "ASCII",
+									"encoding": "CP866",
+									"maxLength": 32,
+									"required": true,
+									"tag": 1264
+								},
+								{
+									"name": "value",
+									"titleRu": "Значение отраслевого реквизита",
+									"description": "Значение отраслевого реквизита",
+									"jsonType": "string",
+									"wireType": "ASCII",
+									"encoding": "CP866",
+									"maxLength": 256,
+									"required": true,
+									"tag": 1265
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "additionalData",
+					"titleRu": "",
+					"description": "Optional additional receipt attributes sent with 0x98.",
+					"jsonType": "object",
+					"wireType": "APPLICATION",
+					"required": false,
+					"children": [
+						{
+							"name": "internetPayment",
+							"titleRu": "Признак расчета в сети интернет",
+							"description": "Included in the fiscal document when equal to 1; 0 remains an explicit supplied byte.",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": false,
+							"tag": 1125,
+							"enum": {
+								"0": "Not an internet payment",
+								"1": "Internet payment"
+							}
+						},
+						{
+							"name": "timeZone",
+							"titleRu": "Часовая зона места расчета",
+							"description": "Used when marked goods are present; numeric value from the Russian classifier. The supplement does not include that classifier's enumeration.",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": false,
+							"tag": 1011
+						},
+						{
+							"name": "settlementAddress",
+							"titleRu": "Адрес расчетов",
+							"description": "Адрес расчетов",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 256,
+							"required": false,
+							"tag": 1009
+						},
+						{
+							"name": "settlementPlace",
+							"titleRu": "Место расчетов",
+							"description": "Место расчетов",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 256,
+							"required": false,
+							"tag": 1187,
+							"requiredIf": "internetPayment equals 1; then this value contains the settlement website address"
+						},
+						{
+							"name": "automaticDeviceNumber",
+							"titleRu": "Номер автоматического устройства",
+							"description": "Номер автоматического устройства",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 20,
+							"required": false,
+							"tag": 1036
+						},
+						{
+							"name": "cashierName",
+							"titleRu": "Кассир",
+							"description": "Кассир",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 64,
+							"required": false,
+							"tag": 1021
+						},
+						{
+							"name": "cashierINN",
+							"titleRu": "ИНН кассира",
+							"description": "ИНН кассира",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 12,
+							"required": false,
+							"tag": 1203
+						},
+						{
+							"name": "customerContact",
+							"titleRu": "Адрес электронной почты или номер телефона покупателя",
+							"description": "Адрес электронной почты или номер телефона покупателя",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 64,
+							"required": false,
+							"tag": 1008
+						},
+						{
+							"name": "customerINN",
+							"titleRu": "ИНН покупателя",
+							"description": "ИНН покупателя",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"fixedLength": 12,
+							"maxLength": 12,
+							"required": false,
+							"tag": 1228,
+							"padding": "space"
+						},
+						{
+							"name": "customerName",
+							"titleRu": "Покупатель (клиент)",
+							"description": "Покупатель (клиент)",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 256,
+							"required": false,
+							"tag": 1227
+						},
+						{
+							"name": "customerBirthDate",
+							"titleRu": "Дата рождения покупателя",
+							"description": "Дата рождения покупателя",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"fixedLength": 10,
+							"maxLength": 10,
+							"required": false,
+							"tag": 1243
+						},
+						{
+							"name": "customerCitizenship",
+							"titleRu": "Гражданство покупателя",
+							"description": "Гражданство покупателя",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"fixedLength": 3,
+							"maxLength": 3,
+							"required": false,
+							"tag": 1244,
+							"padding": "space"
+						},
+						{
+							"name": "customerDocumentType",
+							"titleRu": "Код вида документа, удостоверяющего личность",
+							"description": "Integer document-type code from Appendix 1, page 34.",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": false,
+							"tag": 1245,
+							"enum": {
+								"21": "Паспорт гражданина РФ",
+								"22": "Паспорт гражданина РФ для использования за пределами РФ",
+								"26": "Временное удостоверение личности гражданина РФ",
+								"27": "Свидетельство о рождении гражданина РФ",
+								"28": "Иной документ гражданина РФ",
+								"31": "Паспорт иностранного гражданина",
+								"32": "Иной документ иностранного гражданина",
+								"33": "Иностранный документ лица без гражданства",
+								"34": "Вид на жительство лица без гражданства",
+								"35": "Разрешение на временное проживание лица без гражданства",
+								"36": "Свидетельство о рассмотрении ходатайства о признании беженцем",
+								"37": "Удостоверение беженца",
+								"38": "Иной документ лица без гражданства",
+								"40": "Временный документ на период рассмотрения вопроса о гражданстве"
+							}
+						},
+						{
+							"name": "customerDocumentData",
+							"titleRu": "Данные документа, удостоверяющего личность",
+							"description": "Данные документа, удостоверяющего личность",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 64,
+							"required": false,
+							"tag": 1246
+						},
+						{
+							"name": "customerAddress",
+							"titleRu": "Адрес покупателя",
+							"description": "Адрес покупателя",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 256,
+							"required": false,
+							"tag": 1254
+						},
+						{
+							"name": "additionalReceiptProperty",
+							"titleRu": "Дополнительный реквизит кассового чека",
+							"description": "Дополнительный реквизит кассового чека",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 16,
+							"required": false,
+							"tag": 1192
+						},
+						{
+							"name": "userPropertyName",
+							"titleRu": "Наименование дополнительного реквизита пользователя",
+							"description": "Наименование дополнительного реквизита пользователя",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 64,
+							"required": false,
+							"tag": 1085
+						},
+						{
+							"name": "userPropertyValue",
+							"titleRu": "Значение дополнительного реквизита пользователя",
+							"description": "Значение дополнительного реквизита пользователя",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 256,
+							"required": false,
+							"tag": 1086
+						},
+						{
+							"name": "industryAttributes",
+							"titleRu": "Отраслевой реквизит чека",
+							"description": "Repeated industry attributes. Each object must include authorityCode, documentDate, documentNumber, and value.",
+							"jsonType": "array",
+							"wireType": "STLV",
+							"required": false,
+							"tag": 1261,
+							"repeated": true,
+							"minItems": 1,
+							"children": [
+								{
+									"name": "authorityCode",
+									"titleRu": "Идентификатор органа власти",
+									"description": "Integer federal authority code, Appendix 1 pages 32–33 (001–072 are transmitted as BYTE values 1–72).",
+									"jsonType": "integer",
+									"wireType": "BYTE",
+									"required": true,
+									"tag": 1262,
+									"min": 1,
+									"max": 72
+								},
+								{
+									"name": "documentDate",
+									"titleRu": "Дата документа основания",
+									"description": "Дата документа основания",
+									"jsonType": "string",
+									"wireType": "ASCII",
+									"encoding": "CP866",
+									"maxLength": 10,
+									"required": true,
+									"tag": 1263
+								},
+								{
+									"name": "documentNumber",
+									"titleRu": "Номер документа основания",
+									"description": "Номер документа основания",
+									"jsonType": "string",
+									"wireType": "ASCII",
+									"encoding": "CP866",
+									"maxLength": 32,
+									"required": true,
+									"tag": 1264
+								},
+								{
+									"name": "value",
+									"titleRu": "Значение отраслевого реквизита",
+									"description": "Значение отраслевого реквизита",
+									"jsonType": "string",
+									"wireType": "ASCII",
+									"encoding": "CP866",
+									"maxLength": 256,
+									"required": true,
+									"tag": 1265
+								}
+							]
+						},
+						{
+							"name": "correctedCalculationDate",
+							"titleRu": "Дата совершения корректируемого расчета",
+							"description": "Direct UnixTime tag 1178 for the calculation being corrected, not a nested legacy correction-basis field.",
+							"jsonType": "integer",
+							"wireType": "UNIXTIME",
+							"required": false,
+							"tag": 1178,
+							"notes": "Must not be later than the KKT's correction receipt formation date; the caller supplies its intended Unix timestamp without an implicit timezone conversion.",
+							"requiredIf": "The current receipt is a correction receipt"
+						},
+						{
+							"name": "prescriptionNumber",
+							"titleRu": "Номер предписания налогового органа",
+							"description": "Номер предписания налогового органа",
+							"jsonType": "string",
+							"wireType": "ASCII",
+							"encoding": "CP866",
+							"maxLength": 32,
+							"required": false,
+							"tag": 1179,
+							"requiredIf": "Correction is performed under a tax-authority prescription; omit otherwise"
+						}
+					]
+				},
+				{
+					"name": "payment",
+					"titleRu": "",
+					"description": "Optional explicit payment data for 0x2D. Omission sends no payment command; amounts are not inferred.",
+					"jsonType": "object",
+					"wireType": "APPLICATION",
+					"required": false,
+					"children": [
+						{
+							"name": "taxSystem",
+							"titleRu": "Режим налогообложения",
+							"description": "Режим налогообложения",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"tag": 1055,
+							"enum": {
+								"1": "Общая",
+								"16": "Единый сельскохозяйственный налог",
+								"2": "Упрощенная доход",
+								"32": "Патентная система налогообложения",
+								"4": "Упрощенная доход минус расход"
+							}
+						},
+						{
+							"name": "cashKopecks",
+							"titleRu": "Наличными",
+							"description": "Наличными",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": true,
+							"tag": 1031,
+							"unit": "kopecks"
+						},
+						{
+							"name": "cashlessKopecks",
+							"titleRu": "Безналичными",
+							"description": "Безналичными",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": true,
+							"tag": 1081,
+							"unit": "kopecks"
+						},
+						{
+							"name": "prepaymentKopecks",
+							"titleRu": "Предоплатой (зачетом аванса)",
+							"description": "Предоплатой (зачетом аванса)",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": true,
+							"tag": 1215,
+							"unit": "kopecks"
+						},
+						{
+							"name": "creditKopecks",
+							"titleRu": "Постоплатой (в кредит)",
+							"description": "Постоплатой (в кредит)",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": true,
+							"tag": 1216,
+							"unit": "kopecks"
+						},
+						{
+							"name": "counterProvisionKopecks",
+							"titleRu": "Встречным предоставлением",
+							"description": "Встречным предоставлением",
+							"jsonType": "integer",
+							"wireType": "VLN",
+							"required": true,
+							"tag": 1217,
+							"unit": "kopecks"
+						}
+					]
+				},
+				{
+					"name": "calculationSign",
+					"titleRu": "Признак расчета",
+					"description": "Признак расчета",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"1": "Приход",
+						"2": "Возврат прихода",
+						"3": "Расход",
+						"4": "Возврат расхода"
+					}
+				},
+				{
+					"name": "totalKopecks",
+					"titleRu": "Итог чека в копейках",
+					"description": "Итог чека в копейках",
+					"jsonType": "integer",
+					"wireType": "UINT40",
+					"required": true,
+					"unit": "kopecks"
+				}
+			],
+			"output": [
+				{
+					"name": "shiftOpenedByRequest",
+					"titleRu": "",
+					"description": "True only after confirmed successful 0x22. The shift remains open if receipt creation subsequently fails.",
+					"jsonType": "boolean",
+					"wireType": "",
+					"required": true
+				},
+				{
+					"name": "shiftResult",
+					"titleRu": "",
+					"description": "Shift-opening fiscal result when this operation opened the shift.",
+					"jsonType": "object",
+					"wireType": "",
+					"required": false,
+					"children": [
+						{
+							"name": "shiftNumber",
+							"titleRu": "Номер смены",
+							"description": "Number of the opened or closed shift.",
+							"jsonType": "integer",
+							"wireType": "UINT16",
+							"required": true
+						},
+						{
+							"name": "documentNumber",
+							"titleRu": "Номер ФД",
+							"description": "Fiscal document number.",
+							"jsonType": "integer",
+							"wireType": "UINT32",
+							"required": true
+						},
+						{
+							"name": "fiscalSign",
+							"titleRu": "Фискальный признак",
+							"description": "Fiscal document sign.",
+							"jsonType": "integer",
+							"wireType": "UINT32",
+							"required": true
+						},
+						{
+							"name": "warningFlags",
+							"titleRu": "Флаги предупреждений",
+							"description": "Warning bitmask from table 1 of the FFD 1.2 supplement.",
+							"jsonType": "integer",
+							"wireType": "BYTE",
+							"required": true,
+							"bits": {
+								"0": "РЕСУРС ФН МЕНЕЕ 3 ДНЕЙ",
+								"1": "РЕСУРС ФН МЕНЕЕ 30 ДНЕЙ",
+								"2": "ПАМЯТЬ ФН ЗАПОЛНЕНА",
+								"3": "ОФД НЕ ОТВЕЧАЕТ",
+								"4": "ОШИБКА ФЛК",
+								"5": "ТРЕБ. НАСТР. ККТ",
+								"6": "ОФД АННУЛИРОВАН",
+								"7": "КРИТИЧЕСКАЯ ОШИБКА ФН"
+							}
+						}
+					]
+				},
+				{
+					"name": "receipt",
+					"titleRu": "",
+					"description": "Confirmed receipt fiscal result.",
+					"jsonType": "object",
+					"wireType": "",
+					"required": false,
+					"children": [
+						{
+							"name": "receiptNumber",
+							"titleRu": "Номер чека за смену",
+							"description": "Номер чека за смену",
+							"jsonType": "integer",
+							"wireType": "UINT16",
+							"required": true
+						},
+						{
+							"name": "documentNumber",
+							"titleRu": "Номер ФД",
+							"description": "Номер ФД",
+							"jsonType": "integer",
+							"wireType": "UINT32",
+							"required": true
+						},
+						{
+							"name": "fiscalSign",
+							"titleRu": "Фискальный признак",
+							"description": "Фискальный признак",
+							"jsonType": "integer",
+							"wireType": "UINT32",
+							"required": true
+						},
+						{
+							"name": "dateTime",
+							"titleRu": "Дата-время формирования чека",
+							"description": "Дата-время формирования чека",
+							"jsonType": "string",
+							"wireType": "DATETIME5",
+							"required": true
+						},
+						{
+							"name": "shiftNumber",
+							"titleRu": "Номер смены",
+							"description": "Номер смены",
+							"jsonType": "integer",
+							"wireType": "UINT16",
+							"required": true
+						}
+					]
+				},
+				{
+					"name": "failedStage",
+					"titleRu": "",
+					"description": "Canonical command name of the failed stage.",
+					"jsonType": "string",
+					"wireType": "",
+					"required": false
+				},
+				{
+					"name": "failedCommand",
+					"titleRu": "",
+					"description": "Failed protocol byte as a hexadecimal string.",
+					"jsonType": "string",
+					"wireType": "",
+					"required": false
+				},
+				{
+					"name": "failedItemIndex",
+					"titleRu": "",
+					"description": "Zero-based item index when an item failed.",
+					"jsonType": "integer",
+					"wireType": "",
+					"required": false
+				},
+				{
+					"name": "failure",
+					"titleRu": "",
+					"description": "Original failure in the standard error format, retained even when cleanup leaves an unknown outcome.",
+					"jsonType": "object",
+					"wireType": "",
+					"required": false
+				},
+				{
+					"name": "cleanup",
+					"titleRu": "",
+					"description": "On failure: attempted, succeeded, optional error and skippedReason.",
+					"jsonType": "object",
+					"wireType": "",
+					"required": false
+				}
+			],
+			"notes": [
+				"FFD 1.2 only. Submit directly, not inside executeOperation. Validate all items and both shift branches before communication.",
+				"Cashier name is required even if the shift is already open: the conditional branch is chosen only at execution time.",
+				"Recovery closes the failed session, then uses a fresh session with a separate 25-second deadline and verifies the same factory serial before cancellation. The device gate remains held.",
+				"An unconfirmed opening or rejected begin command does not authorize canceling a potentially preexisting document. Lost finalization remains unknown even if cancellation succeeds."
+			],
+			"source": {
+				"document": "goterminalfa HTTP API",
+				"version": "0.7.0",
 				"page": 0
 			}
 		},
@@ -5903,7 +6957,7 @@
 			],
 			"source": {
 				"document": "goterminalfa HTTP API",
-				"version": "0.6.0",
+				"version": "0.7.0",
 				"page": 0
 			}
 		}

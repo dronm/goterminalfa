@@ -35,7 +35,7 @@ TCP opens a new connection for every protocol command, including commands inside
 
 The operation catalogue validates every step before communication and normalizes aliases before idempotency fingerprinting. It requires matching start/data/completion sequences for registration, shifts, receipts, correction, reports, and archive cursors. Formatted text must be consumed by `printTextBuffer` or `finalizeReceipt` within the same operation. Those stateful subcommands cannot be submitted as independent HTTP requests. One operation's commands cannot interleave with another request to the same KKT.
 
-A completed operation is not an atomic device transaction. Finalizing a document or printing cannot be undone by closing the connection. If a later step fails after state-changing work succeeded, the overall outcome is unknown and its request ID is not executed again.
+A completed operation is not an atomic device transaction. Finalizing a document or printing cannot be undone by closing the connection. In a static `executeOperation`, a later failure after state-changing work leaves an unknown outcome and its request ID is not executed again. The separate FFD-only `createReceipt` workflow adds an explicit ownership-aware cleanup policy; it does not turn receipt creation into a rollback transaction.
 
 Operation sessions use the callback-scoped `Client.WithSession` API. The scoped client must not outlive its callback; use it, rather than the parent client, for calls inside that session. A serial session holds a physical port; a TCP session preserves logical operation ownership while each exchange uses its own connection.
 
@@ -67,7 +67,7 @@ SQLite atomically claims `(deviceId, requestId)`, storing canonical command/para
 | `completed` | Original HTTP result is recorded | Replay original status and body |
 | `unknown` | Execution outcome is unresolved | Report unknown; do not execute again |
 
-A changed payload under an existing identity is a conflict. A matching completed result is replayed even if an alias was used in the original request. A batch failure after successful state-changing work remains unknown even when the later step returned a definite rejection.
+A changed payload under an existing identity is a conflict. A matching completed result is replayed even if an alias was used in the original request. A static batch failure after successful state-changing work remains unknown even when the later step returned a definite rejection. `createReceipt` can report a definite failure after a definite rejection/unsent failure and acknowledged cancellation of its confirmed owned document; ambiguous delivery or unsuccessful cleanup remains unknown.
 
 Non-base fingerprints include the protocol profile, while base fingerprints retain their existing format. Thus a request ID claimed under base cannot be silently reused for a changed FFD wire definition after reconfiguration. The lookup endpoint can still return the earlier result for reconciliation.
 
@@ -77,7 +77,11 @@ The journal is not a durable asynchronous work queue. Requests execute synchrono
 
 ## Catalogue scope and compatibility
 
-The default base catalogue lists all 72 commands in the supplied base protocol: 68 implemented and four unavailable. The application commands `executeOperation` and `syncDateTime` bring base discovery to 74 entries. The explicit `ffd1.2` catalogue overrides audited overlapping definitions, adds unmarked-item and supplementary-data commands, and blocks superseded base fiscal payloads. [FFD12.md](FFD12.md) records its source audit and supported subset; it does not claim full marking or fiscal-storage closure support.
+The default base catalogue lists all 72 commands in the supplied base protocol: 68 implemented and four unavailable. The application commands `executeOperation` and `syncDateTime` bring base discovery to 74 entries. The explicit `ffd1.2` catalogue contains 80 entries, including the additional application workflow `createReceipt`; it overrides audited overlapping definitions, adds unmarked-item and supplementary-data commands, and blocks superseded base fiscal payloads. [FFD12.md](FFD12.md) records its source audit and supported subset; it does not claim full marking or fiscal-storage closure support.
+
+`createReceipt` validates all caller-supplied parameters before communication, captures the physical KKT identity, reads shift state, and conditionally opens the shift before creating a normal unmarked receipt. Primary success uses one serial session or a fresh TCP connection per protocol command, with one device gate and request claim throughout. It infers no payment amounts and leaves the shift open.
+
+Cleanup is considered only after an opening acknowledgment confirms an owned report or receipt. A definite or ambiguous rejection of an opening command without that acknowledgment does not authorize cancellation of another possible document. When cleanup is needed, the primary session closes first; a fresh session runs under a detached 25-second context while retaining the service's device gate. Cleanup reads the factory serial again and sends `0x10` only to the same physical unit. Results record the failed stage, the original `failure` error, and the separate cleanup outcome/error. A lost `0x24` response remains unknown even after acknowledged cancellation, since a receipt might already have been finalized. Clients and graceful shutdown need a budget that includes primary work, cleanup, and result persistence.
 
 `syncDateTime` validates only an empty parameter object before queueing. It samples the Go process's local wall clock at runtime inside the device gate, after any configured identity check, rather than during request prevalidation. The sampled minute-precision value is encoded through the standard `setDateTime` (`0x72`, TLV `30000`) path and written once. Its request ID and result use the existing mutation journal; replay returns the previous timestamp without resampling or another device write. The process clock and local timezone determine the value, with no browser/caller timezone conversion or scheduled synchronization.
 

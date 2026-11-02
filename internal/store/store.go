@@ -204,9 +204,22 @@ func (s *Store) Complete(ctx context.Context, deviceID, requestID string, httpSt
 // MarkUnknown records that communication failed after execution may have begun.
 // Such a request remains claimed and can never be automatically acquired again.
 func (s *Store) MarkUnknown(ctx context.Context, deviceID, requestID string) error {
-	result, err := s.db.ExecContext(ctx, `UPDATE requests SET state = ?, updated_at = ?
+	return s.MarkUnknownWithResponse(ctx, deviceID, requestID, nil)
+}
+
+// MarkUnknownWithResponse atomically retains an uncertain operation's exact
+// response body, including diagnostic stage and cleanup details. Unknown is not
+// a completed HTTP result: http_status remains zero, and the claim may never be
+// acquired or automatically completed again. A nil response preserves the
+// generic-unknown behavior of MarkUnknown without storing a SQL NULL.
+func (s *Store) MarkUnknownWithResponse(ctx context.Context, deviceID, requestID string, response []byte) error {
+	if response == nil {
+		response = []byte{}
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE requests
+		SET state = ?, http_status = 0, response = ?, updated_at = ?
 		WHERE device_id = ? AND request_id = ? AND state = ?`,
-		StateUnknown, time.Now().UTC().UnixNano(), deviceID, requestID, StateInProgress)
+		StateUnknown, response, time.Now().UTC().UnixNano(), deviceID, requestID, StateInProgress)
 	if err != nil {
 		return fmt.Errorf("mark request outcome unknown: %w", err)
 	}

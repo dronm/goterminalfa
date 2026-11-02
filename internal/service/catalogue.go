@@ -76,6 +76,10 @@ type Command struct {
 	Validate          func(json.RawMessage) error
 	ValidateForDevice func(*Device, json.RawMessage) error
 	Execute           func(context.Context, *Device, json.RawMessage) (any, error)
+	// OnError runs after the failed primary session has closed, while the
+	// service still owns the device gate and durable operation claim. The hook
+	// receives the original device so recovery can open a fresh session.
+	OnError func(context.Context, *Device, any, error) (any, error)
 }
 
 type SerialNumberResult struct {

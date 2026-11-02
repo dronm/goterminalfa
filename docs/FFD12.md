@@ -2,7 +2,7 @@
 
 `goterminalfa` supports an explicit **`ffd1.2`** per-device profile for the implemented parts of **«Протокол информационного обмена ККТ Терминал-ФА — дополнение для работы с ФФД версии 1.2»**. Page references below refer to that supplied supplement unless marked as base.
 
-The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **79 entries**: **65 implemented wire commands**, **12 explicitly unavailable entries**, and the two application commands. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
+The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **80 entries**: **65 implemented wire commands**, **12 explicitly unavailable entries**, and three application commands. The FFD-only `createReceipt` adds a conditional shift-opening and receipt workflow; it is not a new wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
 
 ## Select a profile and inspect its catalogue
 
@@ -66,7 +66,7 @@ A ten-byte base shift result does not become an FFD result by inventing a warnin
 | `0xE5` | `sendShiftClosingData` | 10–11 | Optional closing-data command between `0x29` and `0x2A` |
 | `0xE6` | `sendSettlementReportData` | 12 | Optional report-data command between `0x27` and `0x28` |
 
-All five commands require a complete `executeOperation`; independent HTTP calls return `400 operation_required`. Every state-changing operation requires one request ID. Validation occurs before device communication, and the whole sequence retains the device gate and existing transport lifecycle.
+All five commands require a complete operation; independent HTTP calls return `400 operation_required`. Use a static `executeOperation` sequence or, for its supported normal receipt path, the FFD-only `createReceipt` workflow. Every state-changing operation requires one request ID. Validation occurs before device communication, and the whole sequence retains the device gate and existing transport lifecycle.
 
 ### Unmarked receipt items
 
@@ -143,7 +143,9 @@ Where the supplement does not redefine a common command, explicitly retained bas
 
 These are reads: `getDateTime` (`0x73`), `getNetworkSettings` (`0x75`), `getOfdSettings` (`0x77`), `getPrinterSettings` (`0x79`), and `getControlSettings` (`0x81`). Their setters `0x72`/`0x74`/`0x76`/`0x78`/`0x80` are **writes**, not status queries, and still require request IDs. The `syncDateTime` application command is likewise a journaled clock write using inherited `0x72`.
 
-TCP/serial deadlines, settings final-step guards, idempotency replay, and unknown-outcome handling are unchanged. A late failure after an earlier successful mutation is not rolled back or automatically retried.
+TCP/serial deadlines, settings final-step guards, and idempotency replay retain their existing behavior. Static batches do not branch or run automatic error cancellation. The dedicated `createReceipt` workflow checks shift state and conditionally opens it, then submits items, any supplied additional/payment data, and finalization. It leaves an opened shift open and never infers payment values.
+
+On failure, `createReceipt` attempts cancellation only after a report/receipt was confirmed opened by that request. Cleanup uses a new session after the primary closes, a detached 25-second context, and a fresh factory-serial check to bind cancellation to the same physical KKT; the device gate stays held. A lost receipt finalization response remains unknown even if cancellation is acknowledged. [API.md](API.md#create-a-receipt-with-conditional-shift-opening) defines its outcome and response details. This workflow cannot be nested inside `executeOperation`.
 
 ## Examples
 
@@ -155,6 +157,7 @@ Use `config.ffd12.example.json` for these `cashdesk-ffd12` requests. Existing un
 | `ffd12-open-shift.json` | Complete `0x21` → `0x2F` → optional `0xE4` → `0x22` sequence |
 | `ffd12-close-shift.json` | Complete `0x29` → `0x2F` → optional `0xE5` → `0x2A` sequence |
 | `ffd12-create-receipt.json` | Complete `0x23` → `0x96` → optional `0x98` → `0x2D` → `0x24` unmarked receipt |
+| `ffd12-create-receipt-auto-shift.json` | `createReceipt`: conditional shift opening followed by the receipt, with owned-document cleanup reporting |
 | `ffd12-create-correction.json` | Complete correction with `0x25`, unmarked item, direct correction date in `0x98`, payment, and `0x26` |
 | `ffd12-cancel-receipt.json` | Begin then cancel an unfinalized receipt with inherited `0x10` |
 | `ffd12-settlement-report.json` | Complete `0x27` → optional `0xE6` → `0x28` report |

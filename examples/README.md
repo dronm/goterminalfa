@@ -60,6 +60,7 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 | `ffd12-open-shift.json` | Complete opening with inherited cashier `0x2F`, optional FFD `0xE4`, and the 11-byte final response |
 | `ffd12-close-shift.json` | Complete closing with inherited cashier `0x2F` and optional `0xE5` |
 | `ffd12-create-receipt.json` | Complete unmarked receipt with flat `0x96`, optional extras `0x98`, payment `0x2D`, and strict finalization `0x24` |
+| `ffd12-create-receipt-auto-shift.json` | FFD-only `createReceipt` checks shift state, opens it when closed, and creates the receipt; returns cleanup details on failure |
 | `ffd12-create-correction.json` | Complete correction with direct `correctedCalculationDate` in `0x98` and finalization `0x26` |
 | `ffd12-cancel-receipt.json` | Begin and cancel an unfinalized receipt through inherited `0x10` |
 | `ffd12-settlement-report.json` | Complete settlement report with optional `0xE6` data |
@@ -69,6 +70,10 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 FFD receipt items have no base `item` wrapper. The shift `suppressPrint` BYTE differs from the optional receipt `printSuppressionCode` UINT16 value `41029`. E4/E5/E6 are optional commands; if included, their documented fields are required and report attribute/data must be supplied as a pair. The examples include both `0x2F` and E4/E5 to demonstrate the retained and supplement paths, not to require both in every mode.
 
 All fiscal examples remain deliberate mutation templates. Replace illustrative cashier/address, tax/payment, and correction-date values for the actual device. No marking-code verification or marked-item workflow is implemented. Settings reads remain reads; their setters, including `0x72`/`0x74`/`0x76`/`0x80`, still require request IDs under this profile.
+
+`createReceipt` takes a required top-level `cashierName` for conditional shift opening, 1–200 flat `0x96` item objects, calculation sign, and total. Its optional `payment` is a complete `0x2D` object; no payment is synthesized when omitted. Optional `additionalData` is a `0x98` object. The cashier name is still required when the shift is already open. The auto-shift example omits both printing-suppression flags and preserves the device's normal printing defaults. It leaves the shift open and cannot be placed inside `executeOperation`.
+
+Use the same request ID only to retrieve/replay that exact intended receipt; replay never prints another copy. If failure includes cleanup, a successful cancellation is not proof that an ambiguously finalized receipt did not exist. Reconcile `unknown` results before further action. Allow the full primary execution time plus the detached cleanup budget of up to 25 seconds in caller/shutdown planning.
 
 Changing the control interface to Ethernet (`controlInterface: 1`) can disable the serial control path and must be the final step of an `executeOperation`. On a TCP-configured device, any network-settings or control-settings write must be the final step, even if its interface value remains unchanged. These writes do not modify the server's per-device configuration; change its connection separately. No supplied script selects Ethernet or sends mutating examples automatically. [../docs/LAN.md](../docs/LAN.md) describes the migration and read-only connection check.
 
