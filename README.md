@@ -172,6 +172,8 @@ When a bearer token is configured, add `-H 'Authorization: Bearer YOUR_TOKEN'` t
 
 More read-only request examples are provided for [status](examples/read-status.json), [firmware](examples/read-firmware.json), [clock](examples/read-clock.json), and [cash counters](examples/read-cash-counters.json). They use the same endpoint as the serial-number query. [examples/README.md](examples/README.md) also describes taking one journaled snapshot of all device settings.
 
+Version 0.7.1 also accepts the 22-byte `getStatus` response captured from firmware `204`, preserving its undocumented trailing byte as optional `statusExtensionHex`. The documented 21-byte response retains its existing JSON shape. See [the API guide](docs/API.md#device-settings-and-cash-counters) for the compatibility details.
+
 ## Synchronize the device clock
 
 Submit `cmd: "syncDateTime"`, an empty `params` object, and a required request ID; [examples/sync-clock.json](examples/sync-clock.json) provides the request. The command samples the Go server's local time when execution begins after queue waiting and any configured identity verification, drops seconds, and writes the normal `setDateTime` (`0x72`, TLV tag `30000`) value. A successful response contains `data.dateTime` in `YYYY-MM-DDTHH:mm` form. Serial and TCP devices use the same request.
@@ -215,6 +217,8 @@ For race detection, run `go test -race ./...` on a supported platform with the G
 Tests use simulated exchanges and temporary SQLite databases. They do not issue commands to your physical KKT. Repeat the serial-number request above to verify your hardware connection; the supplied mutating examples are not hardware acceptance tests.
 
 ## Ubuntu service
+
+For the complete Ubuntu Server 22.04 deployment procedure, including USB discovery, stable device naming, configuration, systemd and troubleshooting, see [doc/DEPLOYMENT_UBUNTU_22.md](doc/DEPLOYMENT_UBUNTU_22.md).
 
 An example systemd unit is supplied in [deploy/goterminalfa.service](deploy/goterminalfa.service). Build the binary, then prepare its account and directories:
 

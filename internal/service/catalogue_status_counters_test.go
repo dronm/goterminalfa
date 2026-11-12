@@ -150,6 +150,81 @@ func TestKKTStatusDecodesEveryDocumentedField(t *testing.T) {
 	}
 }
 
+func TestKKTStatusDecodesCapturedFirmware204Frames(t *testing.T) {
+	cases := []struct {
+		dateTime string
+		frameHex string
+	}{
+		{"2026-11-12T10:44", "b6290017003535303130313034363138321a0b0c0a2c0000010300fdcd"},
+		{"2026-11-12T10:45", "b6290017003535303130313034363138321a0b0c0a2d00000103005d88"},
+		{"2026-11-12T10:51", "b6290017003535303130313034363138321a0b0c0a3300000103007a12"},
+	}
+	for _, profile := range []string{"base", "ffd1.2"} {
+		commands, err := BuiltinCommandsForProfile(profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var command Command
+		for _, candidate := range commands {
+			if candidate.Definition.Name == "getStatus" {
+				command = candidate
+				break
+			}
+		}
+		if command.Execute == nil {
+			t.Fatalf("missing getStatus in profile %s", profile)
+		}
+		for _, tc := range cases {
+			t.Run(profile+"/"+tc.dateTime, func(t *testing.T) {
+				frame, err := hex.DecodeString(tc.frameHex)
+				if err != nil {
+					t.Fatal(err)
+				}
+				device := &Device{ExpectedSerialNumber: "550101046182", Client: terminalfa.NewClient(statusCounterExchange(func(_ context.Context, code byte, payload []byte) ([]byte, error) {
+					if code != 0x01 || len(payload) != 0 {
+						t.Errorf("unexpected status request: code 0x%02X, data % X", code, payload)
+					}
+					return protocol.ReadResponse(bytes.NewReader(frame))
+				}))}
+				result, err := command.Execute(context.Background(), device, json.RawMessage(`{}`))
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := map[string]any{
+					"serialNumber": "550101046182", "dateTime": tc.dateTime,
+					"criticalErrors": float64(0), "printerStatus": float64(0),
+					"fiscalStoragePresent": float64(1), "lifecycleFlags": float64(3),
+					"statusExtensionHex": "00",
+				}
+				if got := statusCounterObject(t, result); !reflect.DeepEqual(got, want) {
+					t.Fatalf("decoded captured status = %#v, want %#v", got, want)
+				}
+			})
+		}
+	}
+}
+
+func TestKKTStatusPreservesOptionalExtensionByte(t *testing.T) {
+	for _, extension := range []byte{0x00, 0xFF} {
+		t.Run(fmt.Sprintf("%02x", extension), func(t *testing.T) {
+			response := append(statusCounterStatusResponse(), extension)
+			result, _, err := statusCounterExecute(t, 0x01, `{}`, response)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]any{
+				"serialNumber": "550101046182", "dateTime": "2026-11-01T15:04",
+				"criticalErrors": float64(0), "printerStatus": float64(2),
+				"fiscalStoragePresent": float64(1), "lifecycleFlags": float64(3),
+				"statusExtensionHex": fmt.Sprintf("%02x", extension),
+			}
+			if got := statusCounterObject(t, result); !reflect.DeepEqual(got, want) {
+				t.Fatalf("extended status = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
 func TestPrintLineWidthRetainsFullByteRange(t *testing.T) {
 	for _, value := range []byte{0, 32, 48, 255} {
 		result, sent, err := statusCounterExecute(t, 0xBB, `{}`, []byte{value})
@@ -161,20 +236,24 @@ func TestPrintLineWidthRetainsFullByteRange(t *testing.T) {
 
 func TestKKTStatusChecksConfiguredPhysicalIdentity(t *testing.T) {
 	command := statusCounterCommand(t, 0x01)
-	device := &Device{ExpectedSerialNumber: "550101046183", Client: terminalfa.NewClient(statusCounterExchange(func(context.Context, byte, []byte) ([]byte, error) {
-		return statusCounterStatusResponse(), nil
-	}))}
-	if _, err := command.Execute(context.Background(), device, json.RawMessage(`{}`)); err == nil {
-		t.Fatal("status accepted a different physical KKT")
-	} else {
-		var identity *IdentityError
-		if !errors.As(err, &identity) || identity.Actual != "550101046182" || identity.Expected != device.ExpectedSerialNumber {
-			t.Fatalf("expected typed identity mismatch, got %v", err)
-		}
-	}
-	device.ExpectedSerialNumber = "550101046182"
-	if _, err := command.Execute(context.Background(), device, json.RawMessage(`{}`)); err != nil {
-		t.Fatalf("matching KKT identity rejected: %v", err)
+	for _, response := range [][]byte{statusCounterStatusResponse(), append(statusCounterStatusResponse(), 0)} {
+		t.Run(fmt.Sprintf("%d bytes", len(response)), func(t *testing.T) {
+			device := &Device{ExpectedSerialNumber: "550101046183", Client: terminalfa.NewClient(statusCounterExchange(func(context.Context, byte, []byte) ([]byte, error) {
+				return response, nil
+			}))}
+			if _, err := command.Execute(context.Background(), device, json.RawMessage(`{}`)); err == nil {
+				t.Fatal("status accepted a different physical KKT")
+			} else {
+				var identity *IdentityError
+				if !errors.As(err, &identity) || identity.Actual != "550101046182" || identity.Expected != device.ExpectedSerialNumber {
+					t.Fatalf("expected typed identity mismatch, got %v", err)
+				}
+			}
+			device.ExpectedSerialNumber = "550101046182"
+			if _, err := command.Execute(context.Background(), device, json.RawMessage(`{}`)); err != nil {
+				t.Fatalf("matching KKT identity rejected: %v", err)
+			}
+		})
 	}
 }
 
@@ -261,7 +340,8 @@ func TestStatusCounterRejectsMalformedResponses(t *testing.T) {
 		code byte
 		data []byte
 	}{
-		{0x01, status[:20]}, {0x01, append(append([]byte{}, status...), 0)}, {0x01, invalidDate},
+		{0x01, status[:20]}, {0x01, append(append([]byte{}, status...), 0, 0)},
+		{0x01, invalidDate}, {0x01, append(append([]byte{}, invalidDate...), 0)},
 		{0xBB, nil}, {0xBB, []byte{32, 0}},
 		{0xB0, make([]byte, 9)}, {0xB0, make([]byte, 11)},
 		{0xB1, []byte{0}}, {0xB2, []byte{0}}, {0xB3, []byte{0}}, {0xB4, []byte{0}},

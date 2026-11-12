@@ -1,5 +1,26 @@
 # Validation
 
+## Firmware 204 status compatibility (version 0.7.1)
+
+The status compatibility update was checked on Linux amd64 with Go 1.25.3:
+
+```bash
+go test ./...
+go vet ./...
+GOFLAGS=-buildvcs=false make prod
+./goterminalfa -version
+```
+
+All checks passed, and the production executable reported `goterminalfa 0.7.1`. VCS stamping was disabled for the source-archive build check.
+
+Regression tests replay all three CRC-framed status responses captured from firmware `204` on 2026-11-12 through the frame reader and command decoder, in both `base` and `ffd1.2` profiles. They verify the known field offsets and the optional opaque `statusExtensionHex` value. Coverage retains the unchanged legacy 21-byte JSON response, preserves additional byte values `00` and `ff`, rejects truncated/oversized status responses and invalid dates, and enforces the configured factory serial for both response lengths. Other commands retain their existing strict trailing-byte checks.
+
+An additional compiled-server check used Linux pseudo-terminals and the real serial transport to replay the captured 10:51 response. Both profiles returned HTTP 200 with `status: "completed"`, `dateTime: "2026-11-12T10:51"`, and `statusExtensionHex: "00"`. Runtime command discovery matched the updated exported catalogue metadata. This was a simulation using captured bytes; the updated binary was not connected to the physical KKT during these checks.
+
+The extra byte's meaning remains undocumented. Compatibility treats the observed response as the documented 21-byte prefix plus one opaque trailing byte; it does not assign that byte a status flag or date/time meaning.
+
+## Version 0.7.0 baseline
+
 Version 0.7.0 was validated on Linux amd64 with Go 1.25.3. The module requires Go 1.23 or newer. These checks passed:
 
 ```bash

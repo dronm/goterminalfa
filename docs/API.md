@@ -93,6 +93,8 @@ Changing KKT network or control settings does not rewrite the server's configura
 
 `getStatus` reads KKT state; `getPrintLineWidth` reads the configured printed-line width. `getCashCounters` returns exact integer `cashKopecks` and `electronicKopecks` values since shift opening. `resetCashCounters`, `printCashCountersReport`, `depositCash`, and `withdrawCash` are state-changing and require request IDs. Deposit and withdrawal each take `amountKopecks` as an unsigned integer or decimal-digit string and encode it as VLN. Runtime prerequisites such as an open shift and sufficient available cash remain device checks.
 
+`getStatus` accepts the documented 21-byte payload and the 22-byte variant captured from firmware `204`. The latter is decoded as the documented fields followed by a single opaque byte, exposed as optional `statusExtensionHex` (for example, `"00"`). This is a compatibility interpretation of the captured frames; the manufacturer documentation does not define that byte's meaning. The five-byte date/time layout and existing field offsets are retained. Legacy responses omit the new field, and other payload lengths remain invalid. This applies to both `base` and `ffd1.2` profiles.
+
 [read-settings.json](../examples/read-settings.json) combines the four getters in one `executeOperation`. It requires a request ID and is journaled as an application operation; repeating that ID replays its snapshot. Invoke individual getters directly when fresh, unjournaled reads are desired.
 
 ## Standalone state-changing commands

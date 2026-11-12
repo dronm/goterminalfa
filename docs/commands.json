@@ -8,7 +8,7 @@
 			"protocolCode": "0x01",
 			"category": "diagnostics",
 			"titleRu": "Запрос статуса ККТ",
-			"description": "Read KKT status: the factory serial number, current device-local date/time, critical-error flag, printer status, fiscal storage presence and fiscal storage lifecycle flags. The positional response contains exactly 21 bytes.",
+			"description": "Read KKT status: the factory serial number, current device-local date/time, critical-error flag, printer status, fiscal storage presence and fiscal storage lifecycle flags. The documented positional response contains 21 bytes; the 22-byte response observed on firmware 204 includes one opaque trailing byte returned as statusExtensionHex.",
 			"descriptionRu": "Запрос статуса ККТ (0x01). Входные параметры: нет. Выходные данные: заводской номер ККТ, ASCII(12); текущие дата/время в ККТ, DATETIME(5); критические ошибки в ККТ, BYTE(1), 0 — ошибок нет, 1 — присутствуют; статус печатающего устройства, BYTE(1), 0 — корректный статус, бумага присутствует, 1 — устройство не подключено, 2 — отсутствует бумага, 3 — замятие бумаги, 5 — открыта крышка ПУ, 6 — ошибка отрезчика ПУ, 7 — аппаратная ошибка ПУ; наличие ФН в ККТ, BYTE(1), 1 — ФН подключен, 0 — ФН не подключен; фаза жизни ФН, BYTE(1), значения битов см. приложение 7.",
 			"readOnly": true,
 			"idempotencyRequired": false,
@@ -89,11 +89,21 @@
 						"2": "постфискальный режим",
 						"3": "закончена передача ФД в ОФД"
 					}
+				},
+				{
+					"name": "statusExtensionHex",
+					"titleRu": "Дополнительный байт статуса (hex)",
+					"description": "Opaque trailing byte observed on firmware 204, returned as two lowercase hexadecimal digits without assigning undocumented semantics.",
+					"jsonType": "string",
+					"wireType": "RAW",
+					"fixedLength": 1,
+					"required": false
 				}
 			],
 			"notes": [
 				"Device-local calendar values have no implied timezone.",
-				"Documented status dictionaries describe known values; unknown response values are preserved for newer firmware."
+				"Documented status dictionaries describe known values; unknown response values are preserved for newer firmware.",
+				"Firmware 204 captures contain one additional trailing byte (00). Its meaning is undocumented; statusExtensionHex preserves it without interpretation and is omitted for the documented 21-byte response. Only 21- or 22-byte status payloads are accepted."
 			],
 			"source": {
 				"document": "Протокол информационного обмена ККТ Терминал-ФА / ККТ КИТ Онлайн-Ф",
