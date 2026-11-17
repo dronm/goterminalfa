@@ -17,6 +17,7 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 	base := BuiltinCommands()
 	byCode := make(map[string]Command)
 	var applications []Command
+	var contextualCommands []Command
 	for _, cmd := range base {
 		if cmd.Definition.ProtocolCode == "" {
 			if cmd.Definition.Name != "executeOperation" {
@@ -31,6 +32,15 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 	overrides = append(overrides, ffd12ActivationCommand())
 	overrides = append(overrides, ffd12HostCommands()...)
 	overrides = append(overrides, ffd12DiagnosticCommands()...)
+	for _, command := range ffd12FiscalStorageClosureCommands() {
+		if command.Definition.ProtocolCode == "0x28" {
+			// Keep both response schemas. The numeric alias is bound to the
+			// preceding report start while preparing a complete operation.
+			contextualCommands = append(contextualCommands, command)
+		} else {
+			overrides = append(overrides, command)
+		}
+	}
 	for _, cmd := range overrides {
 		byCode[cmd.Definition.ProtocolCode] = cmd
 	}
@@ -51,25 +61,30 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 		cmd.Definition.UnavailableReason = "This base-protocol command is superseded in the FFD 1.2 profile; use " + replacement + ". Select the base profile only when intentionally targeting the base protocol."
 		byCode[code] = cmd
 	}
-	// The supplement defines 0x14/0x17, but labels closure finalization 0x28,
-	// which is also its settlement-report finalizer with a different response.
-	// Do not expose a partial or guessed fiscal-storage closure workflow.
-	for _, code := range []string{"0x14", "0x15", "0x17"} {
-		cmd := byCode[code]
-		reason := "The FFD 1.2 supplement defines closure-start/data payloads but assigns finalization to 0x28, also used for settlement reports with a different response. The complete closure workflow remains unavailable pending manufacturer clarification."
-		cmd.Definition.UnavailableReason = reason
-		cmd.Definition.Description = reason
-		cmd.Definition.DescriptionRU = "Форматы начала и данных закрытия ФН описаны, но код завершающей команды 0x28 конфликтует с отчетом о состоянии расчетов. Полная процедура закрытия ФН не включена до уточнения изготовителем."
-		cmd.Definition.Source = Source{Document: "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2", Version: "FFD 1.2", Page: 13}
-		byCode[code] = cmd
-	}
-	commands := make([]Command, 0, len(byCode)+len(applications)+1)
+	// The legacy byte remains unavailable; the canonical closure name now
+	// refers to the context-specific 0x28 finalizer from the supplement.
+	legacyClosure := byCode["0x15"]
+	legacyClosure.Definition.Name = "finalizeFiscalStorageClosureLegacy"
+	legacyClosure.Definition.UnavailableReason = "FFD 1.2 closes the fiscal-storage report with 0x28 after 0x14 in a complete executeOperation. Use finalizeFiscalStorageClosure; legacy command 0x15 is unavailable."
+	legacyClosure.Definition.Description = legacyClosure.Definition.UnavailableReason
+	legacyClosure.Definition.DescriptionRU = "Для завершения отчета о закрытии ФН в ФФД 1.2 используется команда 0x28 после 0x14 в составе одной операции. Устаревшая команда 0x15 не поддерживается."
+	legacyClosure.Definition.Source = ffd12ExtraSource(13)
+	byCode["0x15"] = legacyClosure
+	commands := make([]Command, 0, len(byCode)+len(contextualCommands)+len(applications)+1)
 	for _, cmd := range byCode {
-		cmd.Definition.ProtocolProfile = profile
-		cmd.Definition.OperationRequired = cmd.Definition.Implemented && isWorkflowCommand(cmd.Definition.ProtocolCode)
 		commands = append(commands, cmd)
 	}
-	sort.Slice(commands, func(i, j int) bool { return commands[i].Definition.ProtocolCode < commands[j].Definition.ProtocolCode })
+	commands = append(commands, contextualCommands...)
+	for i := range commands {
+		commands[i].Definition.ProtocolProfile = profile
+		commands[i].Definition.OperationRequired = commands[i].Definition.Implemented && isWorkflowCommand(commands[i].Definition.ProtocolCode)
+	}
+	sort.Slice(commands, func(i, j int) bool {
+		if commands[i].Definition.ProtocolCode == commands[j].Definition.ProtocolCode {
+			return commands[i].Definition.Name < commands[j].Definition.Name
+		}
+		return commands[i].Definition.ProtocolCode < commands[j].Definition.ProtocolCode
+	})
 	for _, cmd := range applications {
 		cmd.Definition.ProtocolProfile = profile
 		commands = append(commands, cmd)

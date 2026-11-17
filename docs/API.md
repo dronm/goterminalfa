@@ -239,6 +239,7 @@ The following workflow commands require this wrapper; a standalone request retur
 | Receipt | `beginReceipt`, item/payment data, `finalizeReceipt` |
 | Correction | `beginCorrectionReceipt`, correction data, `finalizeCorrectionReceipt` |
 | Settlement report | `beginSettlementReport`, `finalizeSettlementReport` |
+| FN closure (FFD only) | `beginFiscalStorageClosure`, optional `sendFiscalStorageClosureData`, `finalizeFiscalStorageClosure` |
 | Archive cursor | `selectFiscalDocumentTLV`, enough `readFiscalDocumentTLV` reads to consume the document |
 | Formatted printer buffer | One or more `bufferFormattedText` calls, consumed by `printTextBuffer` or by `finalizeReceipt` in the same operation |
 
@@ -263,6 +264,40 @@ The repeated step returns `data.chunks`, containing each decoded `0x36` result, 
 - Registration-dependent addresses, device details, taxation systems, agent information, and internet-payment contact requirements remain the caller's responsibility. The catalogue states the documented conditions; it does not infer a device's registration from missing fields.
 
 The receipt example is a complete sequence with illustrative registration-dependent values. Adjust those values before deliberately submitting it to a registered device.
+
+## FFD 1.2 FN closure and report finalization
+
+For an `ffd1.2` device, close the FN with one complete `executeOperation`, one request ID, and the following sequence from supplement page 13:
+
+| Code | Command | Parameters and result |
+| --- | --- | --- |
+| `0x14` | `beginFiscalStorageClosure` | Empty parameters; no response fields |
+| `0x17` | `sendFiscalStorageClosureData` | Optional command; requires `documentAddress` and `documentPlace` when used; no response fields |
+| `0x28` | `finalizeFiscalStorageClosure` | Empty parameters; returns `documentNumber` and `fiscalSign`, exactly eight response bytes |
+
+The minimal operation is `0x14` followed by `0x28`. The optional `0x17` data uses address tag `1009` and place tag `1187`, each at most 256 CP866 bytes. Its optional `reportAttribute` (tag `1282`, at most 32 CP866 bytes) and `reportDataHex` (tag `1283`, at most 32 decoded bytes) must be supplied together. The FN must be in fiscal or post-fiscal mode. [ffd12-close-fiscal-storage.json](../examples/ffd12-close-fiscal-storage.json) demonstrates the complete numeric sequence with report data.
+
+The settlement-report sequence remains `0x27`, optional `0xE6`, then `0x28` (supplement page 12). Its finalizer returns `documentNumber`, `fiscalSign`, `unconfirmedCount`, and `firstUnconfirmedDate`, exactly 15 response bytes. During operation parsing, numeric `0x28` is bound to the preceding report start. After `0x14` it means `finalizeFiscalStorageClosure`; after `0x27` it means `finalizeSettlementReport`. The selected command determines the decoder before any traffic; the driver does not infer the report type from response length or retain report context across requests.
+
+Explicit finalizer names must match their start. For example, `finalizeSettlementReport` after `beginFiscalStorageClosure` is rejected before device communication. Both named finalizers have protocol code `0x28`; the closure definition has no separate numeric alias because numeric dispatch depends on its operation context. Direct calls to report start, data, or finalizer commands return `400 operation_required`. Legacy `0x15` remains unavailable as `finalizeFiscalStorageClosureLegacy` in the FFD catalogue. The base profile retains its unavailable `finalizeFiscalStorageClosure` at `0x15`.
+
+For a minimal named request:
+
+```json
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{"cmd": "beginFiscalStorageClosure", "params": {}},
+			{"cmd": "finalizeFiscalStorageClosure", "params": {}}
+		]
+	},
+	"requestId": "ffd12-fn-closure-minimal-001"
+}
+```
+
+The whole sequence is validated before communication and holds the device gate throughout. Numeric and named forms canonicalize to the same command sequence for request identity. Execution stops at the first error and sends no later steps. It does not roll back earlier effects or automatically cancel the report. If a later step fails after state-changing work succeeded, the journal records an unknown outcome and blocks repetition. Reconcile that state with the device before further action; changing the request ID must not be used to force another execution.
 
 ## FFD 1.2 host settings and diagnostics
 

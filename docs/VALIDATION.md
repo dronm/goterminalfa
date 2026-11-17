@@ -1,8 +1,18 @@
 # Validation
 
+## Context-selected FN closure (version 0.7.4)
+
+Version 0.7.4 adds FFD FN closure through `0x14`, optional `0x17`, and context-selected `0x28`. The catalogue contains 90 entries: 77 implemented wire definitions covering 76 distinct command bytes, 10 unavailable entries, and three application commands. Closure and settlement have separate definitions for the shared finalizer byte. Base execution behavior remains unchanged; the legacy `0x15` unavailability description is corrected.
+
+Regression tests cover minimal and data-bearing closure, numeric/named canonicalization and durable replay across service restarts, one serial session for the complete operation, matching report contexts, strict eight-byte closure and 15-byte settlement responses, cancellation/reset boundaries, mixed-workflow rejection before traffic, and failure stopping later steps without rollback. A later error after accepted state-changing work remains unknown and does not trigger another execution. [The closure example](../examples/ffd12-close-fiscal-storage.json) is a deliberate mutation template, not a physical-device test.
+
+Validated on Linux amd64 with Go 1.25.0: `go test -mod=readonly ./...`, `go vet -mod=readonly ./...`, and a `CGO_ENABLED=0` production build all passed. The source-archive build used `-buildvcs=false`; the executable reported `goterminalfa 0.7.4`.
+
+A compiled-server simulation over fragmented, CRC-framed loopback TCP verified closure and settlement sequences, exact closure TLVs, their separate eight-byte and 15-byte finalization results, named replay, multiple report types in one operation, and context reset after explicit cancellation. Rejected closure/settlement data and a lost closure-finalization response stopped all subsequent commands, retained unknown outcomes, and caused no retry or automatic cancellation. Both runtime catalogues were exported: 85 unrelated FFD definitions remained unchanged, and the base catalogue changed only the legacy `0x15` explanation. The simulation used temporary configuration and journal files and no physical KKT; the server exited cleanly.
+
 ## FFD host settings and diagnostics (version 0.7.3)
 
-Version 0.7.3 adds the FFD-only OISM and marking-key-update settings pairs (`0x82`–`0x85`), FN-format (`0x0F`), OISM-notification (`0x9E`), FN-memory (`0x9D`), and opaque service-parameter (`0xA2`) reads. The catalogue contains 89 entries: 74 implemented wire commands, 12 unavailable entries, and three application commands. The default base catalogue is unchanged.
+Version 0.7.3 added the FFD-only OISM and marking-key-update settings pairs (`0x82`–`0x85`), FN-format (`0x0F`), OISM-notification (`0x9E`), FN-memory (`0x9D`), and opaque service-parameter (`0xA2`) reads. At that version the catalogue contained 89 entries: 74 implemented wire commands, 12 unavailable entries, and three application commands. The default base catalogue was unchanged.
 
 Regression tests cover exact TLV tags and encoded bounds, complete setter forms, the explicit OISM timeout, notification zero dates, optional memory-byte omission, CP866 service text, FFD-only discovery, fresh unjournaled getters, and journaled setter replay. Eight individual JSON examples distinguish six reads from two deliberate settings writes. Example `.invalid` hosts and port `443` are placeholders; they are not production endpoints or device defaults.
 
@@ -62,7 +72,7 @@ Normal builds use the pure-Go SQLite driver. Race detection has the Go toolchain
 - Clock-sync replay tests verify no resampling or device call for a repeated request ID, durable replay through a new service/catalogue, and a fresh sample for a new intended request ID. Device rejection, definite unsent failure, lost replies, and timeouts retain the expected journal states.
 - Clock-sync operation tests cover mutation tracking and rejection of an invalid later step before clock sampling or device traffic. HTTP tests cover public validation, command discovery, and replay.
 - FFD profile tests cover default-base compatibility, per-device catalogue selection, profile-aware fingerprints, strict shift/receipt result sizes, flat unmarked item TLVs, additional receipt/correction data, optional shift/report data, and rejection of superseded legacy fiscal formats.
-- The supplement's 13 overlapping command bytes and implemented additions are audited in [FFD12.md](FFD12.md). Registration, marking, and ambiguous closure workflows remain outside the implemented subset; tests do not treat the profile as full supplement coverage.
+- The supplement's 13 overlapping command bytes and implemented additions were audited for version 0.7.0. Registration, marking, and then-unimplemented closure workflows were outside that version's subset; these baseline checks did not establish full supplement coverage. Current scope is recorded in [FFD12.md](FFD12.md).
 - Receipt-workflow tests cover conditional shift opening, preserved item order, optional data omission, required cashier validation even on the open-shift branch, and full preflight rejection of invalid or over-200-item requests. Unknown shift states start no mutation, and `createReceipt` is rejected outside FFD or when nested in a static operation.
 - Cleanup tests cover definite versus ambiguous failures, acknowledgment-based ownership, fresh serial sessions, detached contexts after caller cancellation, a device gate held through cleanup, and refusal to cancel a different physical factory identity. Original failure details remain separate from cleanup errors.
 

@@ -9,29 +9,31 @@ import (
 	"testing"
 )
 
-func TestFFD12CataloguePreservesBaseAndRejectsAmbiguousAndSupersededCommands(t *testing.T) {
+func TestFFD12CataloguePreservesBaseAndSupportsContextualClosure(t *testing.T) {
 	before := BuiltinCommands()
 	ffd, err := BuiltinCommandsForProfile("ffd1.2")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ffd) != 89 {
+	if len(ffd) != 90 {
 		t.Fatalf("FFD catalogue has %d entries", len(ffd))
 	}
 	if _, err := BuiltinCommandsForProfile("invalid"); err == nil {
 		t.Fatal("accepted unsupported profile")
 	}
 	implemented := 0
+	implementedCodes := make(map[string]bool)
 	for _, cmd := range ffd {
 		if cmd.Definition.ProtocolProfile != "ffd1.2" {
 			t.Fatalf("missing profile: %s", cmd.Definition.Name)
 		}
 		if cmd.Definition.ProtocolCode != "" && cmd.Definition.Implemented {
 			implemented++
+			implementedCodes[cmd.Definition.ProtocolCode] = true
 		}
 	}
-	if implemented != 74 {
-		t.Fatalf("implemented FFD wire commands %d, want 74", implemented)
+	if implemented != 77 || len(implementedCodes) != 76 {
+		t.Fatalf("implemented FFD wire definitions %d, distinct codes %d; want 77 and 76", implemented, len(implementedCodes))
 	}
 	after := BuiltinCommands()
 	for i := range before {
@@ -42,14 +44,17 @@ func TestFFD12CataloguePreservesBaseAndRejectsAmbiguousAndSupersededCommands(t *
 	device := unusedDevice(t, "ffd")
 	device.ProtocolProfile = "ffd1.2"
 	app, _ := testService(t, []*Device{device}, before)
-	for _, code := range []string{"0x12", "0x13", "0x14", "0x15", "0x16", "0x17", "0x1F", "0x2B", "0x2C", "0x2E", "0x3F", "0x34"} {
+	for _, code := range []string{"0x12", "0x13", "0x15", "0x16", "0x1F", "0x2B", "0x2C", "0x2E", "0x3F", "0x34"} {
 		requireError(t, app.Execute(context.Background(), Request{DeviceID: device.ID, Command: code}), 501, "command_unavailable")
 	}
 	for _, cmd := range ffd {
 		if cmd.Definition.ProtocolCode == "0x14" || cmd.Definition.ProtocolCode == "0x17" {
-			if !strings.Contains(cmd.Definition.UnavailableReason, "0x28") || strings.Contains(cmd.Definition.UnavailableReason, "without a payload") {
-				t.Fatalf("stale reason after supplement supplied payload: %+v", cmd.Definition)
+			if !cmd.Definition.Implemented || cmd.Definition.UnavailableReason != "" || !cmd.Definition.OperationRequired {
+				t.Fatalf("closure command is not available inside operations: %+v", cmd.Definition)
 			}
+		}
+		if cmd.Definition.ProtocolCode == "0x15" && (cmd.Definition.Name != "finalizeFiscalStorageClosureLegacy" || !strings.Contains(cmd.Definition.UnavailableReason, "0x28")) {
+			t.Fatalf("legacy closure byte must direct callers to 0x28: %+v", cmd.Definition)
 		}
 	}
 }

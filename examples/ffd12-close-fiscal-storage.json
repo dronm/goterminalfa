@@ -1,0 +1,26 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "executeOperation",
+	"params": {
+		"commands": [
+			{
+				"cmd": "0x14",
+				"params": {}
+			},
+			{
+				"cmd": "0x17",
+				"params": {
+					"documentAddress": "Example address",
+					"documentPlace": "Example settlement place",
+					"reportAttribute": "Example attribute",
+					"reportDataHex": "0102"
+				}
+			},
+			{
+				"cmd": "0x28",
+				"params": {}
+			}
+		]
+	},
+	"requestId": "ffd12-fn-closure-001"
+}

@@ -903,18 +903,22 @@
 				"0x14"
 			],
 			"protocolCode": "0x14",
-			"category": "unresolved",
-			"titleRu": "Начать отчет о закрытии ФН",
-			"description": "The FFD 1.2 supplement defines closure-start/data payloads but assigns finalization to 0x28, also used for settlement reports with a different response. The complete closure workflow remains unavailable pending manufacturer clarification.",
-			"descriptionRu": "Форматы начала и данных закрытия ФН описаны, но код завершающей команды 0x28 конфликтует с отчетом о состоянии расчетов. Полная процедура закрытия ФН не включена до уточнения изготовителем.",
+			"category": "registration",
+			"titleRu": "Начать формирование отчета о закрытии ФН",
+			"description": "Begin the fiscal-storage closure report. This selects the closure meaning of finalizer 0x28, whose result contains the fiscal document number and fiscal sign only.",
+			"descriptionRu": "Начать формирование отчета о закрытии ФН (0x14). Входные параметры и выходные данные отсутствуют. Команда начинает процедуру формирования фискального документа «Отчет о закрытии ФН». ФН должен быть в состоянии «Фискальный режим» или «Постфискальный режим».",
 			"readOnly": false,
 			"idempotencyRequired": true,
-			"implemented": false,
-			"unavailableReason": "The FFD 1.2 supplement defines closure-start/data payloads but assigns finalization to 0x28, also used for settlement reports with a different response. The complete closure workflow remains unavailable pending manufacturer clarification.",
+			"implemented": true,
+			"operationRequired": true,
 			"requestLayout": "positional",
 			"responseLayout": "positional",
 			"input": [],
 			"output": [],
+			"preconditions": [
+				"The fiscal storage must be in fiscal or post-fiscal mode.",
+				"Finish with finalizeFiscalStorageClosure (0x28) in the same complete operation."
+			],
 			"source": {
 				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
 				"version": "FFD 1.2",
@@ -922,7 +926,7 @@
 			}
 		},
 		{
-			"name": "finalizeFiscalStorageClosure",
+			"name": "finalizeFiscalStorageClosureLegacy",
 			"protocolProfile": "ffd1.2",
 			"aliases": [
 				"0x15"
@@ -930,12 +934,12 @@
 			"protocolCode": "0x15",
 			"category": "unresolved",
 			"titleRu": "Сформировать отчет о закрытии ФН",
-			"description": "The FFD 1.2 supplement defines closure-start/data payloads but assigns finalization to 0x28, also used for settlement reports with a different response. The complete closure workflow remains unavailable pending manufacturer clarification.",
-			"descriptionRu": "Форматы начала и данных закрытия ФН описаны, но код завершающей команды 0x28 конфликтует с отчетом о состоянии расчетов. Полная процедура закрытия ФН не включена до уточнения изготовителем.",
+			"description": "FFD 1.2 closes the fiscal-storage report with 0x28 after 0x14 in a complete executeOperation. Use finalizeFiscalStorageClosure; legacy command 0x15 is unavailable.",
+			"descriptionRu": "Для завершения отчета о закрытии ФН в ФФД 1.2 используется команда 0x28 после 0x14 в составе одной операции. Устаревшая команда 0x15 не поддерживается.",
 			"readOnly": false,
 			"idempotencyRequired": true,
 			"implemented": false,
-			"unavailableReason": "The FFD 1.2 supplement defines closure-start/data payloads but assigns finalization to 0x28, also used for settlement reports with a different response. The complete closure workflow remains unavailable pending manufacturer clarification.",
+			"unavailableReason": "FFD 1.2 closes the fiscal-storage report with 0x28 after 0x14 in a complete executeOperation. Use finalizeFiscalStorageClosure; legacy command 0x15 is unavailable.",
 			"requestLayout": "positional",
 			"responseLayout": "positional",
 			"input": [],
@@ -1134,18 +1138,67 @@
 				"0x17"
 			],
 			"protocolCode": "0x17",
-			"category": "unresolved",
+			"category": "registration",
 			"titleRu": "Передать данные отчета о закрытии ФН",
-			"description": "The FFD 1.2 supplement defines closure-start/data payloads but assigns finalization to 0x28, also used for settlement reports with a different response. The complete closure workflow remains unavailable pending manufacturer clarification.",
-			"descriptionRu": "Форматы начала и данных закрытия ФН описаны, но код завершающей команды 0x28 конфликтует с отчетом о состоянии расчетов. Полная процедура закрытия ФН не включена до уточнения изготовителем.",
+			"description": "Optionally supply closure report address/place and a paired additional attribute and binary data between 0x14 and closure finalization 0x28. Address and place are required when this optional command is supplied.",
+			"descriptionRu": "Передать данные отчета о закрытии ФН (0x17). Входные TLV: адрес формирования ФД, тег 1009, ASCII, не более 256 символов; место формирования ФД, тег 1187, ASCII, не более 256 символов; дополнительный реквизит отчета, тег 1282, ASCII, не более 32 символов; дополнительные данные отчета, тег 1283, BYTE(N), не более 32 байт. Теги 1282 и 1283 необязательны, при включении указываются одновременно. Выходные данные отсутствуют. Выполнение команды в процессе закрытия ФН необязательно.",
 			"readOnly": false,
 			"idempotencyRequired": true,
-			"implemented": false,
-			"unavailableReason": "The FFD 1.2 supplement defines closure-start/data payloads but assigns finalization to 0x28, also used for settlement reports with a different response. The complete closure workflow remains unavailable pending manufacturer clarification.",
-			"requestLayout": "positional",
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "tlv",
 			"responseLayout": "positional",
-			"input": [],
+			"input": [
+				{
+					"name": "documentAddress",
+					"titleRu": "Адрес формирования ФД",
+					"description": "Адрес формирования ФД",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 256,
+					"required": true,
+					"tag": 1009
+				},
+				{
+					"name": "documentPlace",
+					"titleRu": "Место формирования ФД",
+					"description": "Место формирования ФД",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 256,
+					"required": true,
+					"tag": 1187
+				},
+				{
+					"name": "reportAttribute",
+					"titleRu": "Дополнительный реквизит отчета о закрытии ФН",
+					"description": "Optional closure report attribute, at most 32 CP866 bytes. Supply together with reportDataHex.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 32,
+					"required": false,
+					"tag": 1282,
+					"requiredIf": "reportDataHex is present"
+				},
+				{
+					"name": "reportDataHex",
+					"titleRu": "Дополнительные данные отчета о закрытии ФН",
+					"description": "Optional closure report data as hexadecimal text, at most 32 decoded bytes. Supply together with reportAttribute.",
+					"jsonType": "string",
+					"wireType": "HEX",
+					"maxLength": 32,
+					"required": false,
+					"tag": 1283,
+					"requiredIf": "reportAttribute is present"
+				}
+			],
 			"output": [],
+			"preconditions": [
+				"A fiscal-storage closure report has been started with 0x14 and has not yet been finalized with 0x28."
+			],
 			"source": {
 				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
 				"version": "FFD 1.2",
@@ -1758,6 +1811,53 @@
 			}
 		},
 		{
+			"name": "finalizeFiscalStorageClosure",
+			"protocolProfile": "ffd1.2",
+			"aliases": [],
+			"protocolCode": "0x28",
+			"category": "registration",
+			"titleRu": "Сформировать отчет о закрытии ФН",
+			"description": "Finalize the fiscal-storage closure report started with 0x14. The eight-byte response contains two little-endian UINT32 values: fiscal document number and fiscal sign.",
+			"descriptionRu": "Сформировать отчет о закрытии ФН (0x28). Входные параметры отсутствуют. Выходные данные: номер ФД, UINT32 LE; фискальный признак, UINT32 LE. Команда завершает формирование отчета о закрытии ФН, начатое командой 0x14. Контекст отличается от отчета о состоянии расчетов, начатого командой 0x27.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"operationRequired": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Fiscal document sign.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"notes": [
+				"Wire byte 0x28 is selected by the active report context: closure after 0x14 uses this eight-byte response, while settlement after 0x27 uses its own fifteen-byte response.",
+				"The canonical closure command has no numeric aliases; numeric 0x28 is resolved by the complete operation's active report context."
+			],
+			"preconditions": [
+				"A fiscal-storage closure report must have been started with 0x14 in the same complete operation."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 13
+			}
+		},
+		{
 			"name": "finalizeSettlementReport",
 			"protocolProfile": "ffd1.2",
 			"aliases": [
@@ -1811,7 +1911,8 @@
 				}
 			],
 			"notes": [
-				"The FFD 1.2 supplement preserves this command's base wire layout. Optional report details may be sent using 0xE6 between report start and completion."
+				"The FFD 1.2 supplement preserves this command's base wire layout. Optional report details may be sent using 0xE6 between report start and completion.",
+				"Within an FFD 1.2 executeOperation, numeric 0x28 finalizes the report selected by 0x27 (settlement, fifteen-byte response) or 0x14 (fiscal-storage closure, eight-byte response). The explicit name finalizeSettlementReport requires a preceding 0x27."
 			],
 			"preconditions": [
 				"Command 0x27 has succeeded."

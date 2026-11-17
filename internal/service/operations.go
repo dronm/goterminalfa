@@ -126,6 +126,7 @@ func parseOperation(raw json.RawMessage, lookup map[string]Command) ([]operation
 		return nil, fmt.Errorf("commands must be an array containing 1–%d commands", maxOperationCommands)
 	}
 	steps := make([]operationStep, 0, len(rawSteps))
+	var reportStart byte
 	for index, rawStep := range rawSteps {
 		fields, err := operationObject(rawStep)
 		if err != nil {
@@ -146,6 +147,16 @@ func parseOperation(raw json.RawMessage, lookup map[string]Command) ([]operation
 		cmd, ok := lookup[step.Command]
 		if !ok || !cmd.Definition.Implemented || cmd.Execute == nil || cmd.Validate == nil {
 			return nil, fmt.Errorf("commands[%d]: command %q is unavailable", index, step.Command)
+		}
+		// The shared byte finalizes the report chosen by this operation's
+		// preceding start. Bind its response schema before canonicalizing the
+		// request, rather than guessing from response length or device state.
+		if step.Command == "0x28" && reportStart == 0x14 && cmd.Definition.ProtocolProfile == "ffd1.2" {
+			closure, found := lookup["finalizeFiscalStorageClosure"]
+			if !found || !closure.Definition.Implemented || closure.Definition.ProtocolCode != "0x28" || closure.Definition.ProtocolProfile != "ffd1.2" {
+				return nil, fmt.Errorf("commands[%d]: fiscal-storage closure finalization is unavailable", index)
+			}
+			cmd = closure
 		}
 		step.Command = cmd.Definition.Name
 		if cmd.OnError != nil {
@@ -175,6 +186,12 @@ func parseOperation(raw json.RawMessage, lookup map[string]Command) ([]operation
 			}
 		}
 		steps = append(steps, step)
+		switch code {
+		case 0x14, 0x27:
+			reportStart = code
+		case 0x10, 0x28:
+			reportStart = 0
+		}
 	}
 	if err := validateOperationWorkflow(steps); err != nil {
 		return nil, err
@@ -256,7 +273,7 @@ func isWorkflowCommand(value string) bool {
 		return false
 	}
 	switch code {
-	case 0x12, 0x13, 0x16, 0x19, 0x1F, 0x21, 0x22, 0x23, 0x24,
+	case 0x12, 0x13, 0x14, 0x16, 0x17, 0x19, 0x1F, 0x21, 0x22, 0x23, 0x24,
 		0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E,
 		0x2F, 0x35, 0x36, 0x3F, 0x64, 0x65, 0x96, 0x98, 0xE4, 0xE5, 0xE6:
 		return true
@@ -314,6 +331,10 @@ func validateOperationWorkflow(steps []operationStep) error {
 		switch code {
 		case 0x12:
 			start = "registration"
+		case 0x14:
+			if step.resolved.Definition.ProtocolProfile == "ffd1.2" {
+				start = "fn-closure"
+			}
 		case 0x21:
 			start = "shift-open"
 		case 0x29:
@@ -359,6 +380,9 @@ func validateOperationWorkflow(steps []operationStep) error {
 			finish = "correction"
 		case 0x28:
 			finish = "settlement-report"
+			if step.resolved.Definition.Name == "finalizeFiscalStorageClosure" && step.resolved.Definition.ProtocolProfile == "ffd1.2" {
+				finish = "fn-closure"
+			}
 		}
 		if finish != "" {
 			if active != finish {
@@ -387,6 +411,8 @@ func validateOperationWorkflow(steps []operationStep) error {
 		switch code {
 		case 0x16:
 			allowed = active == "registration"
+		case 0x17:
+			allowed = active == "fn-closure" && step.resolved.Definition.ProtocolProfile == "ffd1.2"
 		case 0x2F:
 			allowed = active == "shift-open" || active == "shift-close"
 		case 0x19:

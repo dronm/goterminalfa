@@ -2,7 +2,7 @@
 
 `goterminalfa` supports an explicit **`ffd1.2`** per-device profile for the implemented parts of **«Протокол информационного обмена ККТ Терминал-ФА — дополнение для работы с ФФД версии 1.2»**. Page references below refer to that supplied supplement unless marked as base.
 
-The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **89 entries**: **74 implemented wire commands**, **12 explicitly unavailable entries**, and three application commands. The FFD-only `createReceipt` adds a conditional shift-opening and receipt workflow; it is not a new wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
+The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **90 entries**: **77 implemented wire definitions** covering **76 distinct command bytes**, **10 explicitly unavailable entries**, and three application commands. The two named finalizers at `0x28` have separate workflow-specific decoders. The FFD-only `createReceipt` adds a conditional shift-opening and receipt workflow; it is not a new wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
 
 ## Select a profile and inspect its catalogue
 
@@ -49,7 +49,7 @@ One logical device still owns one execution gate and its normal idempotency jour
 | `0x25` | `beginCorrectionReceipt` | 22 | Same optional UINT16 printing parameter as `0x23` |
 | `0x26` | `finalizeCorrectionReceipt` | 28 | Calculation sign plus UINT40 total, strict 17-byte response; no base VLN/legacy VAT encoding |
 | `0x27` | `beginSettlementReport` | 12 | Base request/response layout retained with supplement provenance |
-| `0x28` | `finalizeSettlementReport` | 12 | Base settlement-report layout retained; not repurposed as the conflicting closure finalizer on page 13 |
+| `0x28` | `finalizeSettlementReport` | 12 | Strict 15-byte settlement result after `0x27`; numeric `0x28` resolves to the separate closure definition after `0x14` |
 | `0x29` | `startCloseShift` | 10 | Same optional `suppressPrint` BYTE and printing default |
 | `0x2A` | `completeCloseShift` | 11 | Strict 11-byte response, including `warningFlags` |
 | `0x2D` | `setReceiptPayment` | 27 | Only tax system and five explicit payment amounts; valid for normal and correction receipts; extras move to `0x98` |
@@ -61,6 +61,9 @@ A ten-byte base shift result does not become an FFD result by inventing a warnin
 | Code | Canonical command | Page | Schema and execution rule |
 | --- | --- | --- | --- |
 | `0x0F` | `getFiscalStorageFormat` | 5 | Read-only: active and supported FFD version bytes |
+| `0x14` | `beginFiscalStorageClosure` | 13 | Begin FN closure within a complete operation; no parameters |
+| `0x17` | `sendFiscalStorageClosureData` | 13 | Optional FN-closure address/place and paired report attributes within that operation |
+| `0x28` | `finalizeFiscalStorageClosure` | 13 | Complete FN closure; strict eight-byte result; numeric form selected by preceding `0x14` |
 | `0x82` | `setOismSettings` | 4 | Standalone journaled write of complete host, port, and timeout TLVs |
 | `0x83` | `getOismSettings` | 4 | Read-only: host, port, and timeout TLVs |
 | `0x84` | `setMarkingKeyUpdateSettings` | 4 | Standalone journaled write of complete key-update host and port TLVs |
@@ -75,7 +78,17 @@ A ten-byte base shift result does not become an FFD result by inventing a warnin
 | `0xE5` | `sendShiftClosingData` | 10–11 | Optional closing-data command between `0x29` and `0x2A` |
 | `0xE6` | `sendSettlementReportData` | 12 | Optional report-data command between `0x27` and `0x28` |
 
-The five receipt/report data commands require a complete operation; independent HTTP calls return `400 operation_required`. Use a static `executeOperation` sequence or, for its supported normal receipt path, the FFD-only `createReceipt` workflow. `applyActivationCode` is a standalone write and does not require `executeOperation`. Every state-changing request requires one request ID. Validation occurs before device communication, and a complete sequence retains the device gate and existing transport lifecycle.
+Receipt/report data commands and FN-closure steps require a complete operation; independent HTTP calls return `400 operation_required`. Use a static `executeOperation` sequence or, for its supported normal receipt path, the FFD-only `createReceipt` workflow. `applyActivationCode` is a standalone write and does not require `executeOperation`. Every state-changing request requires one request ID. Validation occurs before device communication, and a complete sequence retains the device gate and existing transport lifecycle.
+
+### FN closure and shared report finalization
+
+Version 0.7.4 supports `0x14` → optional `0x17` → `0x28` as one complete FN-closure operation. `beginFiscalStorageClosure` has no parameters. If `sendFiscalStorageClosureData` is used, provide `documentAddress` (tag `1009`) and `documentPlace` (tag `1187`), each at most 256 CP866 bytes. Its optional `reportAttribute` (tag `1282`, at most 32 CP866 bytes) and `reportDataHex` (tag `1283`, at most 32 decoded bytes) must appear together. Omitting `0x17` entirely is permitted. The FN must be in fiscal or post-fiscal mode.
+
+The supplement uses `0x28` for both report finalizers. In `executeOperation`, the preceding start selects the numeric command's meaning: `0x14` selects `finalizeFiscalStorageClosure`, with an eight-byte result containing `documentNumber` and `fiscalSign`; `0x27` selects `finalizeSettlementReport`, whose 15-byte result additionally contains `unconfirmedCount` and `firstUnconfirmedDate`. Decoding follows the resolved operation command, without response-length guessing or context stored between requests. The existing settlement path `0x27` → optional `0xE6` → `0x28` retains its schema.
+
+Explicit named finalizers must match their corresponding start, and closure/settlement data cannot cross workflows. Numeric and named forms canonicalize before fingerprinting, so equivalent operations share request identity. The closure finalizer has no independent numeric alias in the catalogue; numeric `0x28` dispatch is contextual. FFD `finalizeFiscalStorageClosureLegacy` at `0x15` remains unavailable. The base profile retains its existing unavailable closure names and command bytes.
+
+All report steps are prevalidated and execute under one device gate and one request ID. The first execution error stops the batch; later commands are not sent. Earlier effects are not rolled back, and no automatic cancellation runs. A later failure after an accepted state-changing step leaves an unknown journaled outcome that cannot execute again automatically. [API.md](API.md#ffd-12-fn-closure-and-report-finalization) and [the closure example](../examples/ffd12-close-fiscal-storage.json) show the request contract.
 
 ### Host settings and diagnostics
 
@@ -154,13 +167,12 @@ These restrictions do not remove or change the base profile's existing functiona
 | Supplement code(s) | Source page(s) | Status and reason |
 | --- | --- | --- |
 | `0xE1`, `0xE2`, `0xE3` | 7–8 | FFD registration is not implemented; page-8 reason BYTE and page-35 bitmask wording need an explicit resolved definition before extending it |
-| `0x14`, `0x17`, closure `0x28` | 13 | Start/data layouts are present, but the closure finalizer conflicts with settlement `0x28` on page 12 and has a different response; complete closure remains unavailable |
 | `0x90`, `0x91`, `0x92`, `0x94`, `0x95` | 14–21 | Marking-code verification/state workflows are not implemented |
 | `0x97` | 24–25 | Marked-item submission is not implemented |
 
-The base `0x15` closure finalizer is not guessed from the supplement's conflicting `0x28`. The inherited `0x34` remains unavailable because its layout is not documented. The catalogue states reasons for registered unavailable entries; supplement commands not registered in this subset return `404 unknown_command`.
+Legacy `0x15` remains unavailable; FFD FN closure uses the context-selected `0x28` definition documented above. The inherited `0x34` remains unavailable because its layout is not documented. The catalogue states reasons for registered unavailable entries; supplement commands not registered in this subset return `404 unknown_command`.
 
-This implementation covers selected FFD shifts, unmarked receipt workflows, activation-code submission, host settings, and diagnostics. It does not provide full FFD 1.2 or marked-goods coverage. Required device firmware, fiscal registration, FN state, and manufacturer activation must support the intended commands.
+This implementation covers FN closure, selected FFD shifts, unmarked receipt workflows, activation-code submission, host settings, and diagnostics. It does not provide full FFD 1.2 or marked-goods coverage. Required device firmware, fiscal registration, FN state, and manufacturer activation must support the intended commands.
 
 ## Inherited common commands and side effects
 
@@ -195,6 +207,7 @@ Use `config.ffd12.example.json` for these `cashdesk-ffd12` requests. Existing un
 | `ffd12-create-correction.json` | Complete correction with `0x25`, unmarked item, direct correction date in `0x98`, payment, and `0x26` |
 | `ffd12-cancel-receipt.json` | Begin then cancel an unfinalized receipt with inherited `0x10` |
 | `ffd12-settlement-report.json` | Complete `0x27` → optional `0xE6` → `0x28` report |
+| `ffd12-close-fiscal-storage.json` | Complete `0x14` → `0x17` → context-selected `0x28` FN closure |
 | `ffd12-read-clock.json` | Read-only clock query |
 | `ffd12-sync-clock.json` | Deliberate server-clock synchronization write with a request ID |
 

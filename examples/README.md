@@ -73,12 +73,17 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 | `ffd12-create-correction.json` | Complete correction with direct `correctedCalculationDate` in `0x98` and finalization `0x26` |
 | `ffd12-cancel-receipt.json` | Begin and cancel an unfinalized receipt through inherited `0x10` |
 | `ffd12-settlement-report.json` | Complete settlement report with optional `0xE6` data |
+| `ffd12-close-fiscal-storage.json` | Complete FN closure with numeric `0x14`, optional report data `0x17`, and context-selected `0x28` |
 | `ffd12-read-clock.json` | Inherited read-only `0x73` |
 | `ffd12-sync-clock.json` | Explicit journaled clock synchronization through inherited `0x72` |
 
 FFD receipt items have no base `item` wrapper. The shift `suppressPrint` BYTE differs from the optional receipt `printSuppressionCode` UINT16 value `41029`. E4/E5/E6 are optional commands; if included, their documented fields are required and report attribute/data must be supplied as a pair. The examples include both `0x2F` and E4/E5 to demonstrate the retained and supplement paths, not to require both in every mode.
 
 The six new `ffd12-get-*` examples omit request IDs and query afresh without journal records. The two `ffd12-set-*` examples require complete parameters and a request ID. Hosts `oism.example.invalid` and `keys.example.invalid`, and port `443`, are placeholders; replace them with the settings for the actual KKT. The OISM timeout is explicitly `30` seconds, as recommended by the supplement, rather than an implicit driver default. Setters return `data: {}`. These host settings do not implement marking-code verification or marked-item receipts.
+
+`ffd12-close-fiscal-storage.json` closes the FN through one complete `executeOperation` and one request ID. Replace its illustrative address and place before deliberate submission. The `0x17` step may be omitted; when present, its address/place are required, and any `reportAttribute`/`reportDataHex` values must be supplied as a pair. Numeric `0x28` finalizes FN closure after `0x14`, or settlement reporting after `0x27`. Explicit finalizer names must match their corresponding start. The closure result contains only `documentNumber` and `fiscalSign`; the settlement result additionally contains `unconfirmedCount` and `firstUnconfirmedDate`. Context is resolved within the request, without inspecting response length or carrying report state across requests.
+
+These report batches stop on the first error and send no later steps. They do not roll back accepted commands or automatically cancel the report. A later failure after state-changing work leaves an unknown outcome that is not executed again automatically. The legacy FFD `0x15` finalizer remains unavailable; use the documented `0x28` operation path. [The API guide](../docs/API.md#ffd-12-fn-closure-and-report-finalization) shows a minimal named form.
 
 All fiscal examples remain deliberate mutation templates. Replace illustrative cashier/address, tax/payment, and correction-date values for the actual device. No marking-code verification or marked-item workflow is implemented. Settings reads remain reads; their setters, including `0x72`/`0x74`/`0x76`/`0x80`, still require request IDs under this profile.
 

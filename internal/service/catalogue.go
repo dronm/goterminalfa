@@ -214,7 +214,7 @@ func builtinCommands(now func() time.Time) []Command {
 	commands = append(commands, settingsCommands()...)
 	commands = append(commands,
 		unavailableCommand(0x14, "beginFiscalStorageClosure", "Начать отчет о закрытии ФН", "Listed in the base protocol without a payload definition. The separate FFD 1.2 supplement is not silently substituted for the configured base protocol."),
-		unavailableCommand(0x15, "finalizeFiscalStorageClosure", "Сформировать отчет о закрытии ФН", "The base protocol provides no payload definition; the FFD 1.2 supplement uses a conflicting command code. Manufacturer clarification is required."),
+		unavailableCommand(0x15, "finalizeFiscalStorageClosure", "Сформировать отчет о закрытии ФН", "The base protocol provides no payload definition for 0x15. The FFD 1.2 profile supports fiscal-storage closure with 0x14, optional 0x17, and context-dependent finalization 0x28."),
 		unavailableCommand(0x17, "sendFiscalStorageClosureData", "Передать данные отчета о закрытии ФН", "Listed without a payload definition in the base protocol. FFD 1.2-specific fields are not assumed to apply to this base protocol."),
 		unavailableCommand(0x34, "getActivationParameter", "Запрос параметра активации ФН по номеру тэга", "The command is listed, but its request and response layouts are not documented."),
 	)

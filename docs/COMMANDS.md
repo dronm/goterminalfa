@@ -6,7 +6,7 @@ Read-only commands perform fresh device queries and are not journaled. State-cha
 
 Use `GET /api/v1/commands` for the current full definitions. [commands.json](commands.json) is an exported snapshot with all input/output schemas, TLV tags, exact types, enums, flags, preconditions, notes, and original Russian descriptions. [API.md](API.md) explains request formats and execution semantics.
 
-For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 89 entries contain 74 implemented wire commands, 12 explicitly unavailable entries, and three application commands, including the FFD-only `createReceipt`. [FFD12.md](FFD12.md) contains the supplement audit matrix, host-setting and diagnostic additions, receipt/report definitions, inherited commands, and remaining scope limits. `applyActivationCode` (`0xDD`) submits the vendor-supplied, device-specific 16-byte code as exactly 32 hexadecimal characters in `activationCodeHex`; it is a standalone journaled write requiring a request ID. Do not use the base table as a substitute for that device's actual schemas.
+For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 90 entries contain 77 implemented wire definitions (76 distinct command bytes), 10 explicitly unavailable entries, and three application commands, including the FFD-only `createReceipt`. The two report finalizers share byte `0x28` and have separate context-selected decoders. [FFD12.md](FFD12.md) contains the supplement audit matrix, FN closure, host-setting and diagnostic additions, receipt/report definitions, inherited commands, and remaining scope limits. `applyActivationCode` (`0xDD`) submits the vendor-supplied, device-specific 16-byte code as exactly 32 hexadecimal characters in `activationCodeHex`; it is a standalone journaled write requiring a request ID. Do not use the base table as a substitute for that device's actual schemas.
 
 | Code | Canonical command | Category | Policy | Invocation | Protocol 01.05 page |
 | --- | --- | --- | --- | --- | --- |
@@ -83,6 +83,20 @@ For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the
 | `0xB4` | `withdrawCash` | cashCounters | State-changing | Direct | 27 |
 | `0xBB` | `getPrintLineWidth` | diagnostics | Read-only | Direct | 12 |
 
+## FFD 1.2 FN closure
+
+Version 0.7.4 implements the following FFD-only operation. All steps require one complete `executeOperation` and one request ID. Direct calls return `400 operation_required`.
+
+| Code | Canonical command | Policy | Invocation | Supplement page |
+| --- | --- | --- | --- | --- |
+| `0x14` | `beginFiscalStorageClosure` | State-changing | Operation | 13 |
+| `0x17` | `sendFiscalStorageClosureData` | State-changing | Operation | 13 |
+| `0x28` | `finalizeFiscalStorageClosure` | State-changing | Operation | 13 |
+
+The minimal sequence is `0x14`/`0x28`; optional `0x17` supplies address/place and paired report attribute/data. Within the same operation, numeric `0x28` selects FN closure after `0x14`, or the existing settlement finalizer after `0x27`. Explicit named finalizers must match their start. Closure and settlement use strict eight-byte and 15-byte results respectively, chosen before communication. The named closure definition has no separate numeric alias; dispatch of `0x28` is contextual. FFD-only `finalizeFiscalStorageClosureLegacy` at `0x15` remains unavailable.
+
+The entire operation is prevalidated and holds one device gate. A failure stops later steps without rolling back earlier effects or automatically canceling the report. A later failure after accepted state-changing work remains unknown and cannot be repeated automatically. [API.md](API.md#ffd-12-fn-closure-and-report-finalization) describes the full contract.
+
 ## FFD 1.2 host settings and diagnostics
 
 These version 0.7.3 additions are available only under `ffd1.2`, independently of serial or TCP transport. Every getter takes empty parameters and performs a fresh read without journal records. Both setters require every named field and a request ID; neither requires an `executeOperation` wrapper. [API.md](API.md#ffd-12-host-settings-and-diagnostics) describes the returned fields and optional values.
@@ -117,11 +131,11 @@ Every protocol command accepts its registered numeric alias, for example `0x03`,
 | Code | Reason |
 | --- | --- |
 | `0x14` | Listed in the base protocol without a payload definition. The separate FFD 1.2 supplement is not silently substituted for the configured base protocol. |
-| `0x15` | The base protocol provides no payload definition; the FFD 1.2 supplement uses a conflicting command code. Manufacturer clarification is required. |
+| `0x15` | The base protocol provides no payload definition for `0x15`. The FFD 1.2 profile supports fiscal-storage closure with `0x14`, optional `0x17`, and context-dependent finalization `0x28`. |
 | `0x17` | Listed without a payload definition in the base protocol. FFD 1.2-specific fields are not assumed to apply to this base protocol. |
 | `0x34` | The command is listed, but its request and response layouts are not documented. |
 
-The supplied base protocol lists these commands without enough request/response information to implement them. The separate FFD 1.2 supplement contains conflicting closure codes; the driver requires clarification instead of silently combining incompatible definitions.
+These unavailable definitions describe the base profile, whose supplied protocol lacks sufficient request/response layouts. The separate FFD 1.2 profile implements `0x14` and `0x17` using supplement page 13 and resolves its shared `0x28` finalizer from the complete operation. Legacy `0x15` remains unavailable in both profiles.
 
 ## Representation and compatibility
 

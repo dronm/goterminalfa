@@ -20,6 +20,9 @@ func ffd12ExtraCommands(base []Command) []Command {
 			cmd.Definition.Source = ffd12ExtraSource(12)
 			cmd.Definition.Notes = append(append([]string{}, cmd.Definition.Notes...), "The FFD 1.2 supplement preserves this command's base wire layout. Optional report details may be sent using 0xE6 between report start and completion.")
 			cmd.Definition.DescriptionRU += " Дополнение для ФФД 1.2 сохраняет этот формат команды. При необходимости между началом и завершением отчета передаются данные командой 0xE6."
+			if code == "0x28" {
+				cmd.Definition.Notes = append(cmd.Definition.Notes, "Within an FFD 1.2 executeOperation, numeric 0x28 finalizes the report selected by 0x27 (settlement, fifteen-byte response) or 0x14 (fiscal-storage closure, eight-byte response). The explicit name finalizeSettlementReport requires a preceding 0x27.")
+			}
 			commands = append(commands, cmd)
 			break
 		}
