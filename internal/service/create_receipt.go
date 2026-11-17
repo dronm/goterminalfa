@@ -43,10 +43,15 @@ type createReceiptError struct {
 	Unknown       bool
 	Result        *createReceiptResult
 	Step, Command string
+	Operation     string
 }
 
 func (e *createReceiptError) Error() string {
-	return fmt.Sprintf("createReceipt failed at %s (%s): %v", e.Step, e.Command, e.Cause)
+	name := e.Operation
+	if name == "" {
+		name = "createReceipt"
+	}
+	return fmt.Sprintf("%s failed at %s (%s): %v", name, e.Step, e.Command, e.Cause)
 }
 
 type preparedReceipt struct {
@@ -55,34 +60,48 @@ type preparedReceipt struct {
 	additional, payment                         json.RawMessage
 }
 
+type receiptWorkflow struct {
+	name            string
+	begin, finalize byte
+	correction      bool
+}
+
 func createReceiptCommand(commands []Command) Command {
+	return createReceiptWorkflowCommand(commands, receiptWorkflow{name: "createReceipt", begin: 0x23, finalize: 0x24})
+}
+
+func createCorrectionReceiptCommand(commands []Command) Command {
+	return createReceiptWorkflowCommand(commands, receiptWorkflow{name: "createCorrectionReceipt", begin: 0x25, finalize: 0x26, correction: true})
+}
+
+func createReceiptWorkflowCommand(commands []Command, workflow receiptWorkflow) Command {
 	lookup := make(map[byte]Command)
 	for _, cmd := range commands {
 		if code, ok := operationProtocolCode(cmd.Definition.ProtocolCode); ok {
 			lookup[code] = cmd
 		}
 	}
-	parse := func(raw json.RawMessage) (preparedReceipt, error) { return prepareReceipt(raw, lookup) }
+	parse := func(raw json.RawMessage) (preparedReceipt, error) { return prepareReceipt(raw, lookup, workflow) }
 	shiftPrint := registrationSuppressPrint()
 	shiftPrint.Name = "suppressShiftPrint"
-	return Command{
+	command := Command{
 		Definition: CommandDefinition{
-			Name: "createReceipt", Aliases: []string{}, ProtocolProfile: "ffd1.2", Category: "operations",
+			Name: workflow.name, Aliases: []string{}, ProtocolProfile: "ffd1.2", Category: "operations",
 			TitleRU:       "Создать чек с автоматическим открытием смены",
 			Description:   "Check shift state, open it with 0x21/0x2F/0x22 when closed, and create an unmarked FFD 1.2 receipt with 0x23, one 0x96 per item, optional additional/payment data, and 0x24. On error attempt 0x10 only for a document confirmed opened by this operation. One device gate and requestId cover execution and recovery.",
 			DescriptionRU: "Проверить смену 0x20, при необходимости открыть ее командами 0x21, 0x2F, 0x22, затем сформировать чек командами 0x23, 0x96, при наличии данных 0x98 и 0x2D, и 0x24. При ошибке отменить документ 0x10 только если его открытие подтверждено в данной операции. Неопределенный результат фискализации не считается отмененным после успешной команды 0x10.",
 			ReadOnly:      false, IdempotencyRequired: true, Implemented: true, RequestLayout: "application", ResponseLayout: "application",
 			Input: []ParameterDefinition{
-				lookup[0x2F].Definition.Input[0], lookup[0x2F].Definition.Input[1], shiftPrint, lookup[0x23].Definition.Input[0],
+				lookup[0x2F].Definition.Input[0], lookup[0x2F].Definition.Input[1], shiftPrint, lookup[workflow.begin].Definition.Input[0],
 				{Name: "items", JSONType: "array", WireType: "APPLICATION", Required: true, MinItems: 1, MaxItems: maxReceiptItems, Description: "Unmarked items using the flat 0x96 schema.", Children: lookup[0x96].Definition.Input},
 				{Name: "additionalData", JSONType: "object", WireType: "APPLICATION", Description: "Optional additional receipt attributes sent with 0x98.", Children: lookup[0x98].Definition.Input},
 				{Name: "payment", JSONType: "object", WireType: "APPLICATION", Description: "Optional explicit payment data for 0x2D. Omission sends no payment command; amounts are not inferred.", Children: lookup[0x2D].Definition.Input},
-				lookup[0x24].Definition.Input[0], lookup[0x24].Definition.Input[1],
+				lookup[workflow.finalize].Definition.Input[0], lookup[workflow.finalize].Definition.Input[1],
 			},
 			Output: []ParameterDefinition{
 				{Name: "shiftOpenedByRequest", JSONType: "boolean", Required: true, Description: "True only after confirmed successful 0x22. The shift remains open if receipt creation subsequently fails."},
 				{Name: "shiftResult", JSONType: "object", Children: lookup[0x22].Definition.Output, Description: "Shift-opening fiscal result when this operation opened the shift."},
-				{Name: "receipt", JSONType: "object", Children: lookup[0x24].Definition.Output, Description: "Confirmed receipt fiscal result."},
+				{Name: "receipt", JSONType: "object", Children: lookup[workflow.finalize].Definition.Output, Description: "Confirmed receipt fiscal result."},
 				{Name: "failedStage", JSONType: "string", Description: "Canonical command name of the failed stage."},
 				{Name: "failedCommand", JSONType: "string", Description: "Failed protocol byte as a hexadecimal string."},
 				{Name: "failedItemIndex", JSONType: "integer", Description: "Zero-based item index when an item failed."},
@@ -103,15 +122,15 @@ func createReceiptCommand(commands []Command) Command {
 			data = r
 			defer func() {
 				if recovered := recover(); recovered != nil {
-					err = &createReceiptError{Cause: fmt.Errorf("receipt handler panic: %v", recovered), Unknown: true, Result: r, Step: r.FailedStage, Command: r.FailedCommand}
+					err = &createReceiptError{Cause: fmt.Errorf("receipt handler panic: %v", recovered), Unknown: true, Result: r, Step: r.FailedStage, Command: r.FailedCommand, Operation: workflow.name}
 				}
 			}()
 			p, err := parse(raw)
 			if err != nil {
-				return r, &createReceiptError{Cause: &NotExecutedError{Cause: err}, Result: r, Step: "validation"}
+				return r, &createReceiptError{Cause: &NotExecutedError{Cause: err}, Result: r, Step: "validation", Operation: workflow.name}
 			}
 			fail := func(cause error) (any, error) {
-				return r, &createReceiptError{Cause: cause, Result: r, Unknown: r.mutationAttempted && !definiteReceiptFailure(cause), Step: r.FailedStage, Command: r.FailedCommand}
+				return r, &createReceiptError{Cause: cause, Result: r, Unknown: r.mutationAttempted && !definiteReceiptFailure(cause), Step: r.FailedStage, Command: r.FailedCommand, Operation: workflow.name}
 			}
 			// Generic execution checked the configured expected serial. Otherwise
 			// capture the actual identity to bind recovery to this same unit.
@@ -156,7 +175,7 @@ func createReceiptCommand(commands []Command) Command {
 				}
 				r.documentOwned, r.ShiftOpenedByRequest = false, true
 			}
-			if _, err := run(0x23, p.receiptStart); err != nil {
+			if _, err := run(workflow.begin, p.receiptStart); err != nil {
 				return fail(err)
 			}
 			r.documentOwned = true
@@ -177,7 +196,7 @@ func createReceiptCommand(commands []Command) Command {
 					}
 				}
 			}
-			r.Receipt, err = run(0x24, p.finalize)
+			r.Receipt, err = run(workflow.finalize, p.finalize)
 			if err != nil {
 				return fail(err)
 			}
@@ -195,7 +214,7 @@ func createReceiptCommand(commands []Command) Command {
 			}
 			var failure *createReceiptError
 			if !errors.As(cause, &failure) {
-				failure = &createReceiptError{Cause: cause, Unknown: true, Result: r, Step: r.FailedStage, Command: r.FailedCommand}
+				failure = &createReceiptError{Cause: cause, Unknown: true, Result: r, Step: r.FailedStage, Command: r.FailedCommand, Operation: workflow.name}
 			}
 			var primaryResponse Response
 			_ = json.Unmarshal(executionFailure(Request{}, failure.Cause).Body, &primaryResponse)
@@ -232,6 +251,29 @@ func createReceiptCommand(commands []Command) Command {
 			return r, failure
 		},
 	}
+	if workflow.correction {
+		command.Definition.TitleRU = "Создать чек коррекции с автоматическим открытием смены"
+		command.Definition.Description = "Check shift state, open it with 0x21/0x2F/0x22 when closed, and create an unmarked FFD 1.2 correction receipt with 0x25, one 0x96 per item, required correction data 0x98, optional explicit payment data 0x2D, and 0x26. On error attempt 0x10 only for a document confirmed opened by this operation. One device gate and requestId cover execution and recovery."
+		command.Definition.DescriptionRU = "Проверить смену 0x20, при необходимости открыть ее командами 0x21, 0x2F, 0x22, затем сформировать чек коррекции командами 0x25, 0x96, обязательной 0x98 с датой корректируемого расчета, при наличии данных 0x2D, и 0x26. При ошибке отменить документ 0x10 только если его открытие подтверждено в данной операции. Неопределенный результат фискализации не считается отмененным после успешной команды 0x10."
+		additional := &command.Definition.Input[5]
+		additional.Required = true
+		additional.Description = "Required correction receipt attributes sent with 0x98; correctedCalculationDate is mandatory."
+		// The normal receipt and low-level 0x98 metadata retain their optional
+		// correction date. Only this workflow makes that child mandatory.
+		additional.Children = append([]ParameterDefinition(nil), additional.Children...)
+		for i := range additional.Children {
+			if additional.Children[i].Name == "correctedCalculationDate" {
+				additional.Children[i].Required = true
+				additional.Children[i].RequiredIf = ""
+			}
+		}
+		command.Definition.Notes = append(command.Definition.Notes,
+			"additionalData.correctedCalculationDate is required as an unsigned Unix timestamp (direct tag 1178). The caller must ensure it does not follow the KKT correction-document formation date.",
+			"Supply additionalData.prescriptionNumber only when correcting under a tax-authority prescription. No correction type or legacy correction-basis wrapper is inserted.",
+		)
+		command.Definition.Source.Version = "0.7.5"
+	}
+	return command
 }
 
 func definiteReceiptFailure(err error) bool {
@@ -255,7 +297,7 @@ func createReceiptFailure(req Request, failure *createReceiptError) Reply {
 	return JSONReply(standard.HTTPStatus, response)
 }
 
-func prepareReceipt(raw json.RawMessage, commands map[byte]Command) (preparedReceipt, error) {
+func prepareReceipt(raw json.RawMessage, commands map[byte]Command, workflow receiptWorkflow) (preparedReceipt, error) {
 	var p preparedReceipt
 	object, err := operationObject(raw)
 	if err != nil {
@@ -265,7 +307,7 @@ func prepareReceipt(raw json.RawMessage, commands map[byte]Command) (preparedRec
 		"items": true, "additionalData": true, "payment": true, "calculationSign": true, "totalKopecks": true}
 	for name := range object {
 		if !allowed[name] {
-			return p, fmt.Errorf("unknown createReceipt parameter %q", name)
+			return p, fmt.Errorf("unknown %s parameter %q", workflow.name, name)
 		}
 	}
 	fields := func(names map[string]string) json.RawMessage {
@@ -283,6 +325,9 @@ func prepareReceipt(raw json.RawMessage, commands map[byte]Command) (preparedRec
 	p.receiptStart = fields(map[string]string{"printSuppressionCode": "printSuppressionCode"})
 	p.finalize = fields(map[string]string{"calculationSign": "calculationSign", "totalKopecks": "totalKopecks"})
 	p.additional, p.payment = object["additionalData"], object["payment"]
+	if workflow.correction && p.additional == nil {
+		return p, fmt.Errorf("additionalData with correctedCalculationDate is required for createCorrectionReceipt")
+	}
 	if err := json.Unmarshal(object["items"], &p.items); err != nil || len(p.items) < 1 || len(p.items) > maxReceiptItems {
 		return p, fmt.Errorf("items must contain 1–%d unmarked item objects", maxReceiptItems)
 	}
@@ -291,7 +336,7 @@ func prepareReceipt(raw json.RawMessage, commands map[byte]Command) (preparedRec
 		raw  json.RawMessage
 	}{
 		{0x20, json.RawMessage(`{}`)}, {0x21, p.shiftStart}, {0x2F, p.cashier}, {0x22, json.RawMessage(`{}`)},
-		{0x23, p.receiptStart}, {0x24, p.finalize}, {0x10, json.RawMessage(`{}`)},
+		{workflow.begin, p.receiptStart}, {workflow.finalize, p.finalize}, {0x10, json.RawMessage(`{}`)},
 	} {
 		if err := commands[step.code].Validate(step.raw); err != nil {
 			return p, fmt.Errorf("%s: %w", commands[step.code].Definition.Name, err)
@@ -307,6 +352,15 @@ func prepareReceipt(raw json.RawMessage, commands map[byte]Command) (preparedRec
 			if err := commands[code].Validate(value); err != nil {
 				return p, fmt.Errorf("%s: %w", commands[code].Definition.Name, err)
 			}
+		}
+	}
+	if workflow.correction {
+		additional, err := decodeParams(p.additional)
+		if err != nil {
+			return p, err
+		}
+		if _, present := additional["correctedCalculationDate"]; !present {
+			return p, fmt.Errorf("additionalData.correctedCalculationDate is required for createCorrectionReceipt")
 		}
 	}
 	return p, nil

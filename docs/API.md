@@ -179,11 +179,13 @@ Successful `data` contains `shiftOpenedByRequest` and the decoded `receipt` resu
 
 ### Failure details and cleanup
 
+These result fields and recovery rules also apply to `createCorrectionReceipt`, whose receipt-opening/finalization bytes are `0x25`/`0x26`.
+
 A failure after workflow execution begins includes diagnostic `data.failedStage` with the canonical child command name and `data.failedCommand` with its hexadecimal code. An item failure also includes zero-based `failedItemIndex`. `data.failure` preserves the original cause as the normal error object with `code`, `message`, and optional `deviceCode`, even when the overall outcome is unknown.
 
 `data.cleanup` contains `attempted`, `succeeded`, optional structured `error`, and `skippedReason` when cleanup is skipped. Its error is separate from `data.failure` and uses the same error fields. The outer status/journal outcome remains authoritative; an original device rejection alone does not resolve a later cleanup failure. A cleanup attempt can fail during its identity/session check before cancellation is sent. Both `failure` and `cleanup` are absent on success. Validation or generic pre-execution failures can return the ordinary error response before workflow diagnostics exist.
 
-Cancellation is eligible only after an opening acknowledgment confirms that this request owns an open shift report (`0x21`) or receipt (`0x23`). A rejected opening or an opening with no reliable acknowledgment does not authorize cancellation of a possible pre-existing document. Completing a shift report does not give ownership of a later unacknowledged receipt opening.
+Cancellation is eligible only after an opening acknowledgment confirms that this request owns an open shift report (`0x21`), normal receipt (`0x23`), or correction receipt (`0x25`). A rejected opening or an opening with no reliable acknowledgment does not authorize cancellation of a possible pre-existing document. Completing a shift report does not give ownership of a later unacknowledged receipt opening.
 
 When eligible cleanup is needed, the primary session closes first. The driver retains the device gate, opens a fresh session with a detached 25-second cleanup context, reads the factory serial again, and sends `cancelDocument` (`0x10`) only if it still identifies the same physical KKT. Client cancellation does not cancel that cleanup context. The driver does not close the shift as cleanup.
 
@@ -194,9 +196,25 @@ When eligible cleanup is needed, the primary session closes first. The driver re
 | Ambiguous delivery or lost finalization response | Even if cancellation is acknowledged | Unknown; cancellation is not proof that a receipt was never finalized |
 | Failure with an eligible cleanup attempt that fails | No acknowledged cancellation | Unknown |
 
-In particular, a lost `0x24` reply remains unknown even if `0x10` later succeeds. Cleanup is not a rollback guarantee. The saved request ID remains claimed: replay retrieves its recorded result rather than printing another receipt. Reconcile unknown outcomes against the device before further action.
+In particular, a lost `0x24` or `0x26` reply remains unknown even if `0x10` later succeeds. Cleanup is not a rollback guarantee. The saved request ID remains claimed: replay retrieves its recorded result rather than printing another receipt. Reconcile unknown outcomes against the device before further action.
 
 Budget for primary work, up to 25 seconds of detached cleanup, and result persistence. For a 60-second primary request budget, allow approximately 90 seconds plus margin in the caller and shutdown plan. The FFD example configuration uses `requestTimeout: "60s"` and `shutdownTimeout: "95s"`; older configurations with an explicit 35-second shutdown budget need adjustment for this workflow. A disconnected caller can retrieve the journaled result through the request-lookup endpoint. Existing synchronous serial OS-call limitations still apply.
+
+## Create a correction receipt with conditional shift opening
+
+Version 0.7.5 adds `createCorrectionReceipt` for `ffd1.2` devices. It is a standalone journaled application workflow with one request ID and one device gate. It cannot be nested in `executeOperation`. The existing `ffd12-create-correction.json` static sequence remains supported; the application workflow adds conditional shift opening and confirmed-document cleanup.
+
+Its parameters match [the normal receipt workflow](#create-a-receipt-with-conditional-shift-opening), with one required difference: `additionalData` must contain `correctedCalculationDate`. This is a caller-supplied Unix timestamp encoded directly as tag `1178` in `0x98`, without a legacy correction-basis wrapper. The corrected date must not follow the correction document's formation date on the KKT. Optional `prescriptionNumber` is tag `1179` and is supplied only for a correction ordered by the tax authority.
+
+`cashierName` remains required even when the shift is already open, because the conditional branch is chosen during execution. Supply 1–200 unmarked `0x96` item objects, `calculationSign`, and `totalKopecks`. Optional cashier INN and printing flags use the same fields as `createReceipt`. `payment`, when present, is the complete `0x2D` object. Omitting it sends no `0x2D` command and infers no payment amounts. Required correction data is validated before identity reads, shift queries, or mutations.
+
+After capturing the physical identity (`0x02`), the driver reads shift state (`0x20`) and opens a closed shift with `0x21` → `0x2F` → `0x22`. It then sends `0x25`, one `0x96` per item, required `0x98`, optional `0x2D`, and `0x26`. An already open shift skips the three opening commands. Successfully opened shifts remain open after the workflow.
+
+[ffd12-create-correction-receipt-auto-shift.json](../examples/ffd12-create-correction-receipt-auto-shift.json) is a complete example with an illustrative past correction date, explicit payment, and no printing-suppression flags. Replace its fiscal values with those for the intended correction before submitting it.
+
+Successful `data` has the same shape as the normal workflow: `receipt` contains the decoded `0x26` result; `shiftOpenedByRequest` identifies a shift opened by this request, and `shiftResult` is present only for that branch. Failures preserve `failedStage`, `failedCommand`, any `failedItemIndex`, the original `failure`, and separate `cleanup` details.
+
+The [cleanup and outcome rules](#failure-details-and-cleanup) apply to both workflows. Correction cancellation is eligible only after this request confirmed opening a shift report (`0x21`) or correction receipt (`0x25`); an unacknowledged or rejected opening gives no ownership of another possible document. Eligible recovery closes the primary session, uses a fresh session and detached 25-second context, verifies the same factory serial, and sends `0x10` while retaining the device gate. It does not close the shift. A lost `0x26` response remains unknown even if cancellation succeeds. Repeating the same request ID retrieves the recorded outcome and never creates another correction receipt.
 
 ## Complete operations
 
@@ -226,7 +244,7 @@ Use `executeOperation` for multi-step stateful workflows. Its command byte is em
 
 This automatic-KKT example omits cashier details. Include `sendCashierData` between the two steps when required by the device's registered mode. The sequence creates a fiscal shift-opening report; it is not a read-only connectivity check.
 
-An operation contains 1–256 command objects. Each has `cmd` and optional `params`. Nested `executeOperation` and `createReceipt` calls are rejected. All steps and their workflow structure are validated before device communication. Inner aliases are converted to canonical names before fingerprinting. This static executor does not branch on shift state or attempt error cleanup; use `createReceipt` for its supported conditional workflow.
+An operation contains 1–256 command objects. Each has `cmd` and optional `params`. Nested `executeOperation`, `createReceipt`, and `createCorrectionReceipt` calls are rejected. All steps and their workflow structure are validated before device communication. Inner aliases are converted to canonical names before fingerprinting. This static executor does not branch on shift state or attempt error cleanup; use the dedicated normal or correction receipt workflow for its supported conditional behavior.
 
 The device gate and SQLite request claim cover the complete sequence. Serial keeps one physical port open for the operation. TCP follows the KKT protocol's connect/send/receive/close lifecycle for each command, while preserving the operation's exclusive device gate across connections. Results are returned in order under `data.results`; each entry has its canonical `cmd` and decoded `data`. The outer `requestId` identifies the entire operation, not its individual steps.
 
@@ -243,7 +261,7 @@ The following workflow commands require this wrapper; a standalone request retur
 | Archive cursor | `selectFiscalDocumentTLV`, enough `readFiscalDocumentTLV` reads to consume the document |
 | Formatted printer buffer | One or more `bufferFormattedText` calls, consumed by `printTextBuffer` or by `finalizeReceipt` in the same operation |
 
-The catalogue's `operationRequired` flag identifies individual restricted commands. Workflows must finish in the same request; document workflows can explicitly use `cancelDocument` instead of finalizing. A later device error does not roll back earlier steps. In this static executor, if state-changing work has already succeeded, a subsequent failure results in `unknown` and blocks automatic repetition; the dedicated `createReceipt` cleanup policy is described separately above.
+The catalogue's `operationRequired` flag identifies individual restricted commands. Workflows must finish in the same request; document workflows can explicitly use `cancelDocument` instead of finalizing. A later device error does not roll back earlier steps. In this static executor, if state-changing work has already succeeded, a subsequent failure results in `unknown` and blocks automatic repetition; the dedicated receipt workflows' cleanup policy is described separately above.
 
 ## Archive reads
 

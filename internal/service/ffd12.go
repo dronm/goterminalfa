@@ -90,6 +90,7 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 		commands = append(commands, cmd)
 	}
 	commands = append(commands, createReceiptCommand(commands))
+	commands = append(commands, createCorrectionReceiptCommand(commands))
 	operation := operationCommand(commands)
 	operation.Definition.ProtocolProfile = profile
 	commands = append(commands, operation)
