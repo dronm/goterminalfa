@@ -1,5 +1,15 @@
 # Validation
 
+## Activation-code submission (version 0.7.2)
+
+The current `ffd1.2` catalogue contains 81 entries: 66 implemented wire commands, 12 explicitly unavailable entries, and three application commands. The added `applyActivationCode` (`0xDD`) is a standalone journaled write; the base catalogue is unchanged.
+
+Activation regression tests cover exact 16-byte wire encoding, rejection of invalid codes and missing request IDs before device communication, hexadecimal aliases, FFD-only discovery, and case-normalized idempotency replay. Error cases cover device rejection and uncertain outcomes after lost responses. These checks use simulated devices and temporary journals; they do not establish acceptance of a vendor code by a physical KKT.
+
+Validated on Linux amd64 with Go 1.25.0: `go test -mod=readonly ./...`, `go vet -mod=readonly ./...`, and a `CGO_ENABLED=0` production build all passed. The source-archive build used `-buildvcs=false`; the executable reported `goterminalfa 0.7.2`.
+
+A compiled-server simulation over loopback TCP verified the actual protocol framing, factory-serial verification, one exact 16-byte `0xDD` write, alias/case replay without another write, and rejection of malformed, missing-ID, base-profile, and wrong-serial requests before activation. Runtime discovery regenerated `commands-ffd12.json`; all previous FFD definitions and the base catalogue remained unchanged. The simulation used a temporary configuration and journal, and no physical KKT was contacted.
+
 ## Firmware 204 status compatibility (version 0.7.1)
 
 The status compatibility update was checked on Linux amd64 with Go 1.25.3:

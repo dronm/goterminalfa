@@ -1,0 +1,8 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "applyActivationCode",
+	"params": {
+		"activationCodeHex": "00112233445566778899aabbccddeeff"
+	},
+	"requestId": "ffd12-activation-001"
+}

@@ -56,6 +56,7 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 
 | File | Purpose |
 | --- | --- |
+| `ffd12-apply-activation-code.json` | Apply the vendor's device-specific activation code through standalone, journaled `0xDD`; replace the illustrative code |
 | `ffd12-read-shift.json` | Fresh read-only `getShiftParameters` (`0x20`) |
 | `ffd12-open-shift.json` | Complete opening with inherited cashier `0x2F`, optional FFD `0xE4`, and the 11-byte final response |
 | `ffd12-close-shift.json` | Complete closing with inherited cashier `0x2F` and optional `0xE5` |
@@ -70,6 +71,8 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 FFD receipt items have no base `item` wrapper. The shift `suppressPrint` BYTE differs from the optional receipt `printSuppressionCode` UINT16 value `41029`. E4/E5/E6 are optional commands; if included, their documented fields are required and report attribute/data must be supplied as a pair. The examples include both `0x2F` and E4/E5 to demonstrate the retained and supplement paths, not to require both in every mode.
 
 All fiscal examples remain deliberate mutation templates. Replace illustrative cashier/address, tax/payment, and correction-date values for the actual device. No marking-code verification or marked-item workflow is implemented. Settings reads remain reads; their setters, including `0x72`/`0x74`/`0x76`/`0x80`, still require request IDs under this profile.
+
+`ffd12-apply-activation-code.json` is a separate mutation template for `applyActivationCode`, available only in the `ffd1.2` profile. Obtain the activation code for the actual KKT from the vendor; the driver does not generate or retrieve it. Replace `activationCodeHex` with exactly 32 hexadecimal characters representing the vendor's 16-byte code, without spaces or a `0x` prefix. The example value is illustrative. Send this request directly with a `requestId`; no `executeOperation` wrapper is required. A successful response has `data: {}`. Hexadecimal letter case is normalized for request identity, so a retry with the same ID and different letter case replays the same operation.
 
 `createReceipt` takes a required top-level `cashierName` for conditional shift opening, 1–200 flat `0x96` item objects, calculation sign, and total. Its optional `payment` is a complete `0x2D` object; no payment is synthesized when omitted. Optional `additionalData` is a `0x98` object. The cashier name is still required when the shift is already open. The auto-shift example omits both printing-suppression flags and preserves the device's normal printing defaults. It leaves the shift open and cannot be placed inside `executeOperation`.
 

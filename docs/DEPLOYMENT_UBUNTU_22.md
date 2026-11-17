@@ -422,6 +422,8 @@ curl --fail-with-body --silent --show-error --max-time 90 \
 
 These two commands only read from the device and do not require a `requestId`. They do not open a shift or create a receipt. Use your configured `deviceId` if you changed it.
 
+Firmware `204` has been observed returning 22 status data bytes instead of the documented 21. Use application version `0.7.1` or newer for that response: it returns the extra byte as optional `statusExtensionHex`, for example `"00"`, without interpreting its undocumented meaning. No configuration change is needed for this compatibility update.
+
 If a bearer token is configured, add this option to every `/api/v1/*` request, replacing the placeholder with the configured value:
 
 ```bash

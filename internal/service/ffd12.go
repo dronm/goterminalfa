@@ -28,6 +28,7 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 	}
 	overrides := append(ffd12ShiftCommands(base), ffd12ReceiptCommands()...)
 	overrides = append(overrides, ffd12ExtraCommands(base)...)
+	overrides = append(overrides, ffd12ActivationCommand())
 	for _, cmd := range overrides {
 		byCode[cmd.Definition.ProtocolCode] = cmd
 	}

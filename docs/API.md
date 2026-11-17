@@ -264,6 +264,27 @@ The repeated step returns `data.chunks`, containing each decoded `0x36` result, 
 
 The receipt example is a complete sequence with illustrative registration-dependent values. Adjust those values before deliberately submitting it to a registered device.
 
+## FFD 1.2 activation code
+
+`applyActivationCode` (`0xDD`) is available only for devices configured with `protocolProfile: "ffd1.2"`. It applies the activation code supplied by the vendor for the particular KKT. The driver does not generate or retrieve a code.
+
+Submit it directly to `POST /api/v1/commands` with a `requestId`; no `executeOperation` wrapper is required. The only parameter, `activationCodeHex`, must contain exactly 32 hexadecimal characters without spaces or a `0x` prefix. The driver transmits the decoded 16 raw bytes specified on page 28 of the supplement. Replace the illustrative code below with the vendor's code for the actual device:
+
+```json
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "applyActivationCode",
+	"params": {
+		"activationCodeHex": "00112233445566778899aabbccddeeff"
+	},
+	"requestId": "ffd12-activation-001"
+}
+```
+
+A successful response has `status: "completed"` and `data: {}` because the command defines no response fields. Activation is a journaled write: repeating the same request ID and code replays the recorded result. Hexadecimal letter case is normalized to lowercase before fingerprinting, so uppercase and lowercase representations of the same bytes are the same request. A different code with the same ID returns `409 idempotency_conflict`. Invalid lengths or hexadecimal characters are rejected before device communication.
+
+The request template is [ffd12-apply-activation-code.json](../examples/ffd12-apply-activation-code.json). This command does not register the KKT or change the server's configured protocol profile. An uncertain outcome follows the normal journal recovery rules below.
+
 ## FFD 1.2 receipts and shifts
 
 For an `ffd1.2` device, `beginReceipt`/`beginCorrectionReceipt` accept optional `printSuppressionCode: 41029`, a two-byte value rather than the shifts' `suppressPrint` byte. Items use **`addReceiptItemUnmarked` (`0x96`) with flat named parameters**, not the base command's `item` wrapper. `paymentObject` is required; omitted `measure` is left absent so the device applies its documented pieces/units default.

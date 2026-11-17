@@ -2,7 +2,7 @@
 
 `goterminalfa` supports an explicit **`ffd1.2`** per-device profile for the implemented parts of **«Протокол информационного обмена ККТ Терминал-ФА — дополнение для работы с ФФД версии 1.2»**. Page references below refer to that supplied supplement unless marked as base.
 
-The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **80 entries**: **65 implemented wire commands**, **12 explicitly unavailable entries**, and three application commands. The FFD-only `createReceipt` adds a conditional shift-opening and receipt workflow; it is not a new wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
+The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **81 entries**: **66 implemented wire commands**, **12 explicitly unavailable entries**, and three application commands. The FFD-only `createReceipt` adds a conditional shift-opening and receipt workflow; it is not a new wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
 
 ## Select a profile and inspect its catalogue
 
@@ -62,11 +62,20 @@ A ten-byte base shift result does not become an FFD result by inventing a warnin
 | --- | --- | --- | --- |
 | `0x96` | `addReceiptItemUnmarked` | 22–23 | Flat item TLVs for an ordinary unmarked item; normal or correction receipt operation |
 | `0x98` | `setReceiptAdditionalData` | 26–27 | Receipt/customer/cashier/settlement extras and direct correction fields; normal or correction receipt operation |
+| `0xDD` | `applyActivationCode` | 28 | Standalone journaled write; exactly 32 hexadecimal characters encode the vendor-supplied 16-byte activation code |
 | `0xE4` | `sendShiftOpeningData` | 9 | Optional opening-data command between `0x21` and `0x22` |
 | `0xE5` | `sendShiftClosingData` | 10–11 | Optional closing-data command between `0x29` and `0x2A` |
 | `0xE6` | `sendSettlementReportData` | 12 | Optional report-data command between `0x27` and `0x28` |
 
-All five commands require a complete operation; independent HTTP calls return `400 operation_required`. Use a static `executeOperation` sequence or, for its supported normal receipt path, the FFD-only `createReceipt` workflow. Every state-changing operation requires one request ID. Validation occurs before device communication, and the whole sequence retains the device gate and existing transport lifecycle.
+The five receipt/report data commands require a complete operation; independent HTTP calls return `400 operation_required`. Use a static `executeOperation` sequence or, for its supported normal receipt path, the FFD-only `createReceipt` workflow. `applyActivationCode` is a standalone write and does not require `executeOperation`. Every state-changing request requires one request ID. Validation occurs before device communication, and a complete sequence retains the device gate and existing transport lifecycle.
+
+### Apply a vendor activation code
+
+`applyActivationCode` (`0xDD`, supplement page 28) submits the activation code supplied by the vendor for the particular KKT. The driver does not generate or retrieve activation codes. This command is available only for a device configured with `protocolProfile: "ffd1.2"`.
+
+Supply `activationCodeHex` as exactly 32 hexadecimal characters, without spaces or a `0x` prefix. The driver decodes those characters into the 16 raw bytes required by the protocol. Uppercase and lowercase hexadecimal digits are accepted and normalized to lowercase for request identity, so changing letter case with the same request ID replays the same recorded operation. A successful response contains `data: {}`; the protocol defines no response fields for this command.
+
+Use a `requestId` and replace the illustrative code in [ffd12-apply-activation-code.json](../examples/ffd12-apply-activation-code.json) with the vendor's code for the actual device. Applying a code does not register the KKT or change the configured protocol profile.
 
 ### Unmarked receipt items
 
@@ -131,11 +140,11 @@ These restrictions do not remove or change the base profile's existing functiona
 | `0x14`, `0x17`, closure `0x28` | 13 | Start/data layouts are present, but the closure finalizer conflicts with settlement `0x28` on page 12 and has a different response; complete closure remains unavailable |
 | `0x90`, `0x91`, `0x92`, `0x94`, `0x95` | 14–21 | Marking-code verification/state workflows are not implemented |
 | `0x97` | 24–25 | Marked-item submission is not implemented |
-| `0xDD`, `0xA2` | 28 | FFD activation-code submission and service-parameter query are not implemented |
+| `0xA2` | 28 | Service-parameter query is not implemented |
 
 The base `0x15` closure finalizer is not guessed from the supplement's conflicting `0x28`. The inherited `0x34` remains unavailable because its layout is not documented. The catalogue states reasons for registered unavailable entries; supplement commands not registered in this subset return `404 unknown_command`.
 
-This is an implementation of the selected FFD shifts and unmarked receipt workflows, not a claim of full FFD 1.2 or marked-goods coverage. Required device firmware, fiscal registration, FN state, and any manufacturer activation must already support the intended commands.
+This is an implementation of the selected FFD shifts, unmarked receipt workflows, and activation-code submission, not a claim of full FFD 1.2 or marked-goods coverage. Required device firmware, fiscal registration, FN state, and manufacturer activation must support the intended commands.
 
 ## Inherited common commands and side effects
 
@@ -153,6 +162,7 @@ Use `config.ffd12.example.json` for these `cashdesk-ffd12` requests. Existing un
 
 | File | Purpose |
 | --- | --- |
+| `ffd12-apply-activation-code.json` | Apply the vendor's device-specific 16-byte activation code through journaled `0xDD`; replace the illustrative hexadecimal value |
 | `ffd12-read-shift.json` | Fresh read-only `0x20` state check |
 | `ffd12-open-shift.json` | Complete `0x21` → `0x2F` → optional `0xE4` → `0x22` sequence |
 | `ffd12-close-shift.json` | Complete `0x29` → `0x2F` → optional `0xE5` → `0x2A` sequence |
@@ -164,4 +174,4 @@ Use `config.ffd12.example.json` for these `cashdesk-ffd12` requests. Existing un
 | `ffd12-read-clock.json` | Read-only clock query |
 | `ffd12-sync-clock.json` | Deliberate server-clock synchronization write with a request ID |
 
-All state-changing examples are templates for deliberate submission, not automatically run scripts. Replace illustrative addresses, cashier data, taxonomy/VAT choices, payment amounts, and correction dates with appropriate values for the registered device. Cancellation affects an unfinalized document; it does not undo a completed receipt.
+All state-changing examples are templates for deliberate submission, not automatically run scripts. Replace the illustrative activation code, addresses, cashier data, taxonomy/VAT choices, payment amounts, and correction dates with appropriate values for the registered device. Cancellation affects an unfinalized document; it does not undo a completed receipt.

@@ -15,7 +15,7 @@ func TestFFD12CataloguePreservesBaseAndRejectsAmbiguousAndSupersededCommands(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ffd) != 80 {
+	if len(ffd) != 81 {
 		t.Fatalf("FFD catalogue has %d entries", len(ffd))
 	}
 	if _, err := BuiltinCommandsForProfile("invalid"); err == nil {
@@ -30,8 +30,8 @@ func TestFFD12CataloguePreservesBaseAndRejectsAmbiguousAndSupersededCommands(t *
 			implemented++
 		}
 	}
-	if implemented != 65 {
-		t.Fatalf("implemented FFD wire commands %d, want 65", implemented)
+	if implemented != 66 {
+		t.Fatalf("implemented FFD wire commands %d, want 66", implemented)
 	}
 	after := BuiltinCommands()
 	for i := range before {

@@ -5535,6 +5535,45 @@
 			}
 		},
 		{
+			"name": "applyActivationCode",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0xDD",
+				"0xdd"
+			],
+			"protocolCode": "0xDD",
+			"category": "activation",
+			"titleRu": "Ввод кода активации для команд ФФД 1.2",
+			"description": "Apply the device-specific FFD 1.2 activation code. Exactly 16 decoded bytes are transmitted without a TLV wrapper; a successful response has no data.",
+			"descriptionRu": "Ввод кода активации для команд ФФД 1.2. Код должен быть действителен для конкретного экземпляра ККТ. Вход: массив из 16 байт без TLV-оболочки; в JSON передаются 32 шестнадцатеричных символа. Выходные данные отсутствуют.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "activationCodeHex",
+					"titleRu": "Код активации",
+					"description": "Exactly 32 hexadecimal digits representing 16 raw bytes. Uppercase and lowercase are accepted; prefixes, spaces and separators are not accepted.",
+					"jsonType": "string",
+					"wireType": "HEX",
+					"fixedLength": 16,
+					"required": true
+				}
+			],
+			"output": [],
+			"notes": [
+				"The code must be valid for this individual KKT; the driver does not generate activation codes or change fiscal registration.",
+				"Hexadecimal letter case is normalized before journaling, so equivalent representations reuse the same requestId without another device write."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 28
+			}
+		},
+		{
 			"name": "sendShiftOpeningData",
 			"protocolProfile": "ffd1.2",
 			"aliases": [
@@ -6972,6 +7011,6 @@
 			}
 		}
 	],
-	"deviceId": "ffd-usb",
+	"deviceId": "cashdesk-ffd12",
 	"protocolProfile": "ffd1.2"
 }
