@@ -216,6 +216,68 @@ Successful `data` has the same shape as the normal workflow: `receipt` contains 
 
 The [cleanup and outcome rules](#failure-details-and-cleanup) apply to both workflows. Correction cancellation is eligible only after this request confirmed opening a shift report (`0x21`) or correction receipt (`0x25`); an unacknowledged or rejected opening gives no ownership of another possible document. Eligible recovery closes the primary session, uses a fresh session and detached 25-second context, verifies the same factory serial, and sends `0x10` while retaining the device gate. It does not close the shift. A lost `0x26` response remains unknown even if cancellation succeeds. Repeating the same request ID retrieves the recorded outcome and never creates another correction receipt.
 
+## Register or reregister a KKT
+
+Version 0.7.6 adds `registerKkt` for devices configured with `protocolProfile: "ffd1.2"`. Submit it directly with one request ID. It checks all request fields, reads the connected KKT factory serial (`0x02`), verifies the RN checksum, and executes registration/re-registration as one internal `0xE1` → `0xE2` → `0xE3` sequence. It retains one device gate and transport session. The three registration bytes are not exposed as external commands, and `registerKkt` cannot be nested in `executeOperation`.
+
+All fields below belong directly in `params`:
+
+| Field | Requirement and validation |
+| --- | --- |
+| `reportType` | Required integer: `0` initial registration, `1` re-registration replacing the FN, `2` re-registration without replacement |
+| `userName` | Required, 1–128 CP866 bytes, tag `1048` |
+| `settlementAddress` | Required, 1–256 CP866 bytes, tag `1009` |
+| `settlementPlace` | Required, 1–256 CP866 bytes, tag `1187` |
+| `representativeName` | Required, 1–64 CP866 bytes, tag `1021` |
+| `representativeInn` | Optional valid 12-digit Russian personal INN, tag `1203` |
+| `ofdInn` | Valid 10- or 12-digit Russian INN, tag `1017`; required outside explicitly selected autonomous mode |
+| `ofdName` | 1–64 CP866 bytes, tag `1046`; required outside explicitly selected autonomous mode |
+| `senderEmail` | A single bare email address, at most 64 CP866 bytes, tag `1117`; required outside explicitly selected autonomous mode |
+| `machineNumber` | Optional, 1–21 CP866 bytes, tag `1036` |
+| `reportAttribute` | Optional, at most 32 CP866 bytes, tag `1274`; must accompany `reportDataHex` |
+| `reportDataHex` | Optional hexadecimal data, at most 32 decoded bytes, tag `1275`; must accompany `reportAttribute` |
+| `applicationFlags` | Optional BYTE, tag `9998`; only bits 0–6 are accepted |
+| `operatingMode` | Optional BYTE, tag `9999`; only bits 0, 1, 3, 4, 5 are accepted |
+| `userInn` | Required valid 10- or 12-digit Russian INN |
+| `registrationNumber` | Required string of exactly 16 ASCII digits with a valid RN checksum for this user INN and connected KKT factory serial |
+| `taxationSystems` | Required nonzero BYTE bitmask; accepted bits 0, 1, 2, 4, 5 (`0x37`) |
+| `reregistrationReason` | Required nonzero UINT32 bitmask for report types `1`/`2`; must be omitted for type `0` |
+
+INNs remain strings so leading zeroes are preserved; length, ASCII digits, nonzero content, and Russian INN check digits are validated. Sender email must contain one mailbox without a display name, address list, or header newline. Validation uses the Go standard library and existing CP866 support, with no new third-party dependency or DNS/registry lookup.
+
+Omitting `operatingMode` does not imply autonomous mode: `ofdInn`, `ofdName`, and `senderEmail` remain required. Explicit mode bit 1 selects autonomous mode and excludes encryption bit 0 and Internet-payment bit 5. BSO bit 4 requires services bit 3. Explicit zero flag bytes are transmitted; omitted flag tags are not synthesized. Optional report attribute/data must appear together. Supplied OFD values are validated even when autonomous mode omits their tags from the wire.
+
+The RN is ten sequence digits followed by six decimal digits representing CRC16. The checksum input is 42 ASCII bytes: the ten sequence digits, user INN left-padded with zeroes to twelve digits, and the actual KKT factory serial left-padded with zeroes to twenty digits. CRC16 uses polynomial `0x1021`, initial value `0xFFFF`, no reflection, and no final XOR. The device serial is read under the operation lock; a caller cannot substitute a different serial. Wire padding is separate: E3 right-pads the user INN to twelve ASCII bytes and the RN to twenty bytes with spaces.
+
+The reason field is four-byte UINT32 LE, resolving the supplement's BYTE typo. Bits 0–14, 17–21, and 31 are accepted; reserved bits are rejected. Bit 31 means `2147483648` (`0x80000000`), encoded as `00 00 00 80`. Decimal `31` sets bits 0 through 4; it does not select bit 31. Initial registration omits all four reason bytes.
+
+This illustrative request uses an RN whose checksum matches user INN `7707083893` and factory serial `550101046182`. Replace all identity and registration values with the actual issued values before deliberate submission:
+
+```json
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "registerKkt",
+	"requestId": "register-001",
+	"params": {
+		"reportType": 0,
+		"userName": "Example user",
+		"settlementAddress": "Example address",
+		"settlementPlace": "Example place",
+		"representativeName": "Example representative",
+		"ofdInn": "7707083893",
+		"ofdName": "Example OFD",
+		"senderEmail": "sender@example.org",
+		"userInn": "7707083893",
+		"registrationNumber": "0000000001046446",
+		"taxationSystems": 1
+	}
+}
+```
+
+Successful `data` contains `documentNumber` and `fiscalSign` from the strict eight-byte E3 result. Validation checks format/checksums, not actual issuance or the device's legal registration state. Configure the OISM and marking-key-update settings required by the supplement before registration; this workflow does not change them, open a shift, or apply an activation code.
+
+The first execution failure stops all later registration commands. A mismatching RN checksum after the serial read returns definite `400 invalid_request` with no E1; its journaled failure replays without another serial read. Identity-read failures and a definite E1 rejection also fail without continuing. Once an earlier registration command was accepted, a later failure produces `409 outcome_unknown` and blocks automatic repetition. No cancellation or rollback is attempted. Repeating a matching request ID replays its recorded outcome; changing parameters with that ID returns `409 idempotency_conflict`.
+
 ## Complete operations
 
 Use `executeOperation` for multi-step stateful workflows. Its command byte is empty because it is a driver operation, not a new KKT protocol command.
@@ -244,7 +306,7 @@ Use `executeOperation` for multi-step stateful workflows. Its command byte is em
 
 This automatic-KKT example omits cashier details. Include `sendCashierData` between the two steps when required by the device's registered mode. The sequence creates a fiscal shift-opening report; it is not a read-only connectivity check.
 
-An operation contains 1–256 command objects. Each has `cmd` and optional `params`. Nested `executeOperation`, `createReceipt`, and `createCorrectionReceipt` calls are rejected. All steps and their workflow structure are validated before device communication. Inner aliases are converted to canonical names before fingerprinting. This static executor does not branch on shift state or attempt error cleanup; use the dedicated normal or correction receipt workflow for its supported conditional behavior.
+An operation contains 1–256 command objects. Each has `cmd` and optional `params`. Nested `executeOperation`, `registerKkt`, `createReceipt`, and `createCorrectionReceipt` calls are rejected. All steps and their workflow structure are validated before device communication. Inner aliases are converted to canonical names before fingerprinting. This static executor does not branch on shift state or attempt error cleanup; use the dedicated normal or correction receipt workflow for its supported conditional behavior.
 
 The device gate and SQLite request claim cover the complete sequence. Serial keeps one physical port open for the operation. TCP follows the KKT protocol's connect/send/receive/close lifecycle for each command, while preserving the operation's exclusive device gate across connections. Results are returned in order under `data.results`; each entry has its canonical `cmd` and decoded `data`. The outer `requestId` identifies the entire operation, not its individual steps.
 
@@ -252,7 +314,7 @@ The following workflow commands require this wrapper; a standalone request retur
 
 | Workflow | Required shape |
 | --- | --- |
-| Registration | `startRegistration`, registration data, `completeRegistration` |
+| Base registration | `startRegistration`, registration data, `completeRegistration`; FFD registration instead uses standalone `registerKkt` |
 | Open/close shift | Corresponding start, optional cashier data, corresponding completion |
 | Receipt | `beginReceipt`, item/payment data, `finalizeReceipt` |
 | Correction | `beginCorrectionReceipt`, correction data, `finalizeCorrectionReceipt` |

@@ -15,7 +15,7 @@ func TestFFD12CataloguePreservesBaseAndSupportsContextualClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ffd) != 91 {
+	if len(ffd) != 92 {
 		t.Fatalf("FFD catalogue has %d entries", len(ffd))
 	}
 	if _, err := BuiltinCommandsForProfile("invalid"); err == nil {

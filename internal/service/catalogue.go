@@ -71,7 +71,10 @@ type CommandDefinition struct {
 // Command binds metadata to explicit validation and execution. No arbitrary
 // protocol code or unvalidated raw payload can be submitted through HTTP.
 type Command struct {
-	Definition        CommandDefinition
+	Definition CommandDefinition
+	// OwnsOperation forbids nesting an application that owns its complete
+	// preflight and wire sequence inside a generic executeOperation batch.
+	OwnsOperation     bool
 	Canonicalize      func(json.RawMessage) (json.RawMessage, error)
 	Validate          func(json.RawMessage) error
 	ValidateForDevice func(*Device, json.RawMessage) error

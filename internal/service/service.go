@@ -414,6 +414,14 @@ type NotExecutedError struct{ Cause error }
 func (e *NotExecutedError) Error() string { return e.Cause.Error() }
 func (e *NotExecutedError) Unwrap() error { return e.Cause }
 
+// requestValidationError reports validation that needs device data but still
+// runs before any mutation. Wrap it in NotExecutedError to retain that fact in
+// the durable journal as well as returning a client error.
+type requestValidationError struct{ Cause error }
+
+func (e *requestValidationError) Error() string { return e.Cause.Error() }
+func (e *requestValidationError) Unwrap() error { return e.Cause }
+
 type IdentityError struct{ Expected, Actual string }
 
 func (e *IdentityError) Error() string {
@@ -422,10 +430,13 @@ func (e *IdentityError) Error() string {
 
 func executionFailure(req Request, err error) Reply {
 	var receiptFailure *createReceiptError
+	var validation *requestValidationError
 	var rejection *protocol.DeviceError
 	var identity *IdentityError
 	var serial *terminalfa.InvalidSerialError
 	switch {
+	case errors.As(err, &validation):
+		return Failure(req, 400, "invalid_request", err.Error())
 	case errors.As(err, &receiptFailure):
 		return createReceiptFailure(req, receiptFailure)
 	case errors.As(err, &rejection):

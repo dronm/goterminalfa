@@ -769,7 +769,7 @@
 			"readOnly": false,
 			"idempotencyRequired": true,
 			"implemented": false,
-			"unavailableReason": "This base-protocol command is superseded in the FFD 1.2 profile; use 0xE1/0xE2/0xE3 registration commands (not implemented in this release). Select the base profile only when intentionally targeting the base protocol.",
+			"unavailableReason": "This base-protocol command is superseded in the FFD 1.2 profile; use registerKkt (the complete 0xE1/0xE2/0xE3 registration operation). Select the base profile only when intentionally targeting the base protocol.",
 			"requestLayout": "positional",
 			"responseLayout": "positional",
 			"input": [
@@ -808,7 +808,7 @@
 			"readOnly": false,
 			"idempotencyRequired": true,
 			"implemented": false,
-			"unavailableReason": "This base-protocol command is superseded in the FFD 1.2 profile; use 0xE1/0xE2/0xE3 registration commands (not implemented in this release). Select the base profile only when intentionally targeting the base protocol.",
+			"unavailableReason": "This base-protocol command is superseded in the FFD 1.2 profile; use registerKkt (the complete 0xE1/0xE2/0xE3 registration operation). Select the base profile only when intentionally targeting the base protocol.",
 			"requestLayout": "positional",
 			"responseLayout": "positional",
 			"input": [
@@ -964,7 +964,7 @@
 			"readOnly": false,
 			"idempotencyRequired": true,
 			"implemented": false,
-			"unavailableReason": "This base-protocol command is superseded in the FFD 1.2 profile; use 0xE1/0xE2/0xE3 registration commands (not implemented in this release). Select the base profile only when intentionally targeting the base protocol.",
+			"unavailableReason": "This base-protocol command is superseded in the FFD 1.2 profile; use registerKkt (the complete 0xE1/0xE2/0xE3 registration operation). Select the base profile only when intentionally targeting the base protocol.",
 			"requestLayout": "tlv",
 			"responseLayout": "positional",
 			"input": [
@@ -8524,6 +8524,304 @@
 				"document": "goterminalfa HTTP API",
 				"version": "0.7.5",
 				"page": 0
+			}
+		},
+		{
+			"name": "registerKkt",
+			"protocolProfile": "ffd1.2",
+			"aliases": [],
+			"protocolCode": "",
+			"category": "registration",
+			"titleRu": "Зарегистрировать или перерегистрировать ККТ",
+			"description": "Validate registration data, verify the RN KKT checksum against the actual factory serial read with 0x02, then execute 0xE1, 0xE2 and 0xE3 under one device lock and durable requestId. Returns the fiscal document number and sign. Stops at the first failure; no automatic cancellation or rollback.",
+			"descriptionRu": "Проверить регистрационные данные и контрольную сумму РН ККТ по фактическому заводскому номеру ККТ, затем выполнить команды 0xE1, 0xE2, 0xE3 в рамках одной операции с общим requestId. При ошибке выполнение прекращается. Автоматическая отмена или откат не выполняются.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "application",
+			"responseLayout": "application",
+			"input": [
+				{
+					"name": "reportType",
+					"titleRu": "Тип отчета",
+					"description": "0 initial registration; 1 replacing the FN; 2 without FN replacement.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "Initial registration",
+						"1": "Re-registration replacing the FN",
+						"2": "Re-registration without FN replacement"
+					}
+				},
+				{
+					"name": "userName",
+					"titleRu": "Наименование пользователя",
+					"description": "Registered user's name, at most 128 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 128,
+					"required": true,
+					"tag": 1048
+				},
+				{
+					"name": "settlementAddress",
+					"titleRu": "Адрес расчетов",
+					"description": "Settlement address, at most 256 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 256,
+					"required": true,
+					"tag": 1009
+				},
+				{
+					"name": "settlementPlace",
+					"titleRu": "Место расчетов",
+					"description": "Settlement place, at most 256 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 256,
+					"required": true,
+					"tag": 1187
+				},
+				{
+					"name": "representativeName",
+					"titleRu": "ФИО уполномоченного лица",
+					"description": "Authorized representative's full name, at most 64 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": true,
+					"tag": 1021
+				},
+				{
+					"name": "representativeInn",
+					"titleRu": "ИНН уполномоченного лица",
+					"description": "Optional representative INN: twelve decimal digits with valid checksums.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": false,
+					"tag": 1203
+				},
+				{
+					"name": "ofdInn",
+					"titleRu": "ИНН ОФД",
+					"description": "OFD INN: ten or twelve decimal digits with valid checksums, right-padded with spaces to twelve wire bytes. Omitted from autonomous-mode requests.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": false,
+					"tag": 1017,
+					"requiredIf": "Required unless operatingMode explicitly selects autonomous mode (bit 1).",
+					"padding": "space"
+				},
+				{
+					"name": "ofdName",
+					"titleRu": "Наименование ОФД",
+					"description": "OFD name, at most 64 CP866 bytes. Omitted from autonomous-mode requests.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": false,
+					"tag": 1046,
+					"requiredIf": "Required unless operatingMode explicitly selects autonomous mode (bit 1)."
+				},
+				{
+					"name": "senderEmail",
+					"titleRu": "Электронный адрес отправителя чеков",
+					"description": "One bare sender email address, at most 64 CP866 bytes; display names and address lists are rejected. Omitted from autonomous-mode requests.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": false,
+					"tag": 1117,
+					"requiredIf": "Required unless operatingMode explicitly selects autonomous mode (bit 1)."
+				},
+				{
+					"name": "machineNumber",
+					"titleRu": "Номер автоматического устройства расчетов",
+					"description": "Optional automatic settlement device number, at most 21 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 21,
+					"required": false,
+					"tag": 1036
+				},
+				{
+					"name": "reportAttribute",
+					"titleRu": "Дополнительный реквизит отчета о регистрации",
+					"description": "Optional additional report attribute, at most 32 CP866 bytes; include reportDataHex together with this field.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 32,
+					"required": false,
+					"tag": 1274,
+					"requiredIf": "Required when reportDataHex is present."
+				},
+				{
+					"name": "reportDataHex",
+					"titleRu": "Дополнительные данные отчета о регистрации",
+					"description": "Optional report data as hexadecimal, at most 32 decoded bytes; include reportAttribute together with this field.",
+					"jsonType": "string",
+					"wireType": "HEX",
+					"maxLength": 32,
+					"required": false,
+					"tag": 1275,
+					"requiredIf": "Required when reportAttribute is present."
+				},
+				{
+					"name": "applicationFlags",
+					"titleRu": "Признаки условий применения ККТ",
+					"description": "Optional application-condition bitmask, bits 0 through 6; omission is preserved and is distinct from explicit zero.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"tag": 9998,
+					"bits": {
+						"0": "Excise goods",
+						"1": "Gambling",
+						"2": "Lottery",
+						"3": "Printer installed in vending device",
+						"4": "Marked goods",
+						"5": "Pawnshop activity",
+						"6": "Insurance activity"
+					}
+				},
+				{
+					"name": "operatingMode",
+					"titleRu": "Режим работы",
+					"description": "Optional operating-mode bitmask. Autonomous mode excludes encryption and internet use; BSO mode requires services. No missing mode is inferred.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"tag": 9999,
+					"bits": {
+						"0": "Encryption",
+						"1": "Autonomous mode",
+						"3": "Services",
+						"4": "Strict-reporting forms (BSO)",
+						"5": "Internet"
+					}
+				},
+				{
+					"name": "userInn",
+					"titleRu": "ИНН пользователя",
+					"description": "User INN: ten or twelve decimal digits with valid checksums, right-padded with spaces to twelve wire bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": true,
+					"padding": "space"
+				},
+				{
+					"name": "registrationNumber",
+					"titleRu": "Регистрационный номер ККТ",
+					"description": "Sixteen decimal digits: ten sequence digits followed by the six-digit decimal CRC16. Validated against userInn and actual KKT factory serial before E1; right-padded with four spaces on the wire.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 20,
+					"required": true,
+					"padding": "space"
+				},
+				{
+					"name": "taxationSystems",
+					"titleRu": "Режим налогообложения",
+					"description": "Nonzero taxation-system bitmask; only bits 0, 1, 2, 4 and 5 are defined.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"bits": {
+						"0": "General taxation",
+						"1": "Simplified income",
+						"2": "Simplified income minus expenses",
+						"4": "Unified agricultural tax",
+						"5": "Patent taxation"
+					}
+				},
+				{
+					"name": "reregistrationReason",
+					"titleRu": "Причина изменения сведений о ККТ",
+					"description": "Four-byte UINT32 LE bitmask of tag 1205: bits 0–14, 17–21 and 31. Other reasons (bit 31) is decimal 2147483648. Omit for reportType 0; required for reportType 1 or 2.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": false,
+					"bits": {
+						"0": "FN replacement",
+						"1": "OFD replacement",
+						"10": "Cashier to automatic operation",
+						"11": "Enable BSO",
+						"12": "Disable BSO",
+						"13": "Internet-only to printing mode",
+						"14": "Printing to internet-only mode",
+						"17": "Disable gambling",
+						"18": "Enable gambling",
+						"19": "Disable lottery",
+						"2": "User name changed",
+						"20": "Enable lottery",
+						"21": "FFD version changed",
+						"3": "Installation address or place changed",
+						"31": "Other reasons",
+						"4": "Autonomous to data-transfer mode",
+						"5": "Data-transfer to autonomous mode",
+						"6": "KKT model version changed",
+						"7": "Taxation systems changed",
+						"8": "Automatic settlement device number changed",
+						"9": "Automatic to cashier operation"
+					},
+					"min": 1,
+					"requiredIf": "Required for reportType 1 or 2; must be omitted for reportType 0."
+				}
+			],
+			"output": [
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Fiscal document sign.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				}
+			],
+			"notes": [
+				"FFD 1.2 only. Submit directly; registerKkt cannot be nested in executeOperation. The internal E1/E2/E3 commands are not exposed separately.",
+				"Validate all fields and all three encoded payloads before communicating. The RN checksum is then checked against the actual KKT serial before E1; the FN serial is not used.",
+				"The API accepts a 16-digit registrationNumber. E3 right-pads it with four ASCII spaces; INNs are right-padded with spaces to twelve bytes.",
+				"reregistrationReason is a UINT32 LE bitmask, omitted for reportType 0 and required for reportType 1 or 2. Bit 31 is 2147483648.",
+				"Tags 1203, 1036, 1274, 1275, 9998 and 9999 are optional. Preserve absent flags; explicitly supplied zero values are transmitted. Tags 1274 and 1275 must be supplied together.",
+				"After any successful mutating step, a later failure leaves an unknown outcome and blocks automatic repetition. Replay the same requestId to retrieve its recorded result."
+			],
+			"source": {
+				"document": "goterminalfa HTTP API / Terminal FA FFD 1.2 supplement",
+				"version": "0.7.6",
+				"page": 7
 			}
 		},
 		{

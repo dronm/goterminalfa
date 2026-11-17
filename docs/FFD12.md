@@ -2,7 +2,7 @@
 
 `goterminalfa` supports an explicit **`ffd1.2`** per-device profile for the implemented parts of **«Протокол информационного обмена ККТ Терминал-ФА — дополнение для работы с ФФД версии 1.2»**. Page references below refer to that supplied supplement unless marked as base.
 
-The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **91 entries**: **77 implemented wire definitions** covering **76 distinct command bytes**, **10 explicitly unavailable entries**, and four application commands. The two named finalizers at `0x28` have separate workflow-specific decoders. FFD-only `createReceipt` and `createCorrectionReceipt` provide normal and correction receipt workflows with conditional shift opening; neither adds a wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
+The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **92 entries**: **77 implemented public wire definitions** covering **76 distinct command bytes**, **10 explicitly unavailable entries**, and five application commands. `registerKkt` executes E1/E2/E3 internally as one operation; those bytes have no separate public aliases. The two named finalizers at `0x28` have separate workflow-specific decoders. FFD-only `createReceipt` and `createCorrectionReceipt` provide normal and correction receipt workflows with conditional shift opening; neither adds a wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
 
 ## Select a profile and inspect its catalogue
 
@@ -78,7 +78,19 @@ A ten-byte base shift result does not become an FFD result by inventing a warnin
 | `0xE5` | `sendShiftClosingData` | 10–11 | Optional closing-data command between `0x29` and `0x2A` |
 | `0xE6` | `sendSettlementReportData` | 12 | Optional report-data command between `0x27` and `0x28` |
 
-Receipt/report data commands and FN-closure steps require a complete operation; independent HTTP calls return `400 operation_required`. Use a static `executeOperation` sequence or the FFD-only `createReceipt`/`createCorrectionReceipt` application workflow for normal or correction receipts. `applyActivationCode` is a standalone write and does not require `executeOperation`. Every state-changing request requires one request ID. Validation occurs before device communication, and a complete sequence retains the device gate and existing transport lifecycle.
+Receipt/report data commands and FN-closure steps require a complete operation; independent HTTP calls return `400 operation_required`. Use a static `executeOperation` sequence or the FFD-only `createReceipt`/`createCorrectionReceipt` application workflow for normal or correction receipts. `applyActivationCode` is a standalone write and does not require `executeOperation`. Every state-changing request requires one request ID. Request fields and encoded sizes are validated before communication; registration additionally checks its RN against the actual serial read before E1. A complete sequence retains the device gate and existing transport lifecycle.
+
+### Registration and re-registration
+
+Version 0.7.6 adds one external application command, `registerKkt`. It reads the actual factory serial (`0x02`), verifies the supplied registration number against that identity and the user INN, then executes internal `0xE1` → `0xE2` → `0xE3` steps under one device gate, transport session, and request ID. The public catalogue exposes the application command; E1/E2/E3 cannot be invoked separately or through `executeOperation`, preventing a batch from starting before the checksum is verified. No shift opening or automatic cancellation is added.
+
+`reportType` is `0` (initial), `1` (FN replacement), or `2` (re-registration without FN replacement). E2 uses the supplement's 256-byte CP866 address/place limits. Tags `1203`, `1036`, `1274`, `1275`, `9998`, and `9999` are optional; report attribute/data tags `1274`/`1275` must be supplied together. Explicit zero flag bytes remain present; omitted flags remain absent. OFD INN/name and sender email are required unless autonomous mode is explicitly selected with operating-mode bit 1.
+
+User and OFD INNs accept 10 or 12 ASCII digits and require valid check digits. Optional representative INN accepts a valid 12-digit personal INN. Sender email must be a single bare mailbox within the 64-byte CP866 limit. The 16-digit registration number consists of ten sequence digits and a six-digit decimal CRC16; validation uses the user INN and the actual KKT factory serial. Validation confirms structure and checksums; it does not query registration records. E3 right-pads the user INN to 12 and the RN to 20 ASCII bytes with spaces.
+
+The re-registration reason is a **four-byte UINT32 LE bitmask**, resolving the supplement's page-8 BYTE typo against its page-35 bit indices and the FNS FN 1.2 protocol. It is omitted entirely for initial registration and required for report types 1 and 2. Bit 31 is `2147483648`, emitted as `00 00 00 80`; decimal `31` selects bits 0–4. Reserved bits are rejected. The successful eight-byte E3 response returns `documentNumber` and `fiscalSign` directly.
+
+The first failure stops the sequence. A checksum mismatch after the serial read returns definite `400 invalid_request` before E1. A later failure after a registration step was accepted remains unknown and cannot be executed again automatically. There is no rollback or implicit `0x10`. [API.md](API.md#register-or-reregister-a-kkt) gives the complete field contract, mask limits, and request example.
 
 ### FN closure and shared report finalization
 
@@ -94,7 +106,7 @@ All report steps are prevalidated and execute under one device gate and one requ
 
 The version 0.7.3 settings and diagnostic additions are FFD-only and can be submitted directly. The six getters accept empty parameters, query the device afresh, and bypass the journal even when a request ID is supplied. `setOismSettings` and `setMarkingKeyUpdateSettings` require request IDs and complete parameter objects; neither setter accepts a patch.
 
-OISM settings use `host` (tag `30050`, at most 128 CP866 bytes), `tcpPort` (tag `30051`, UINT16 LE), and `timeoutSeconds` (tag `30052`, UINT16 LE). Key-update settings use `host` (tag `30060`, at most 128 CP866 bytes) and `tcpPort` (tag `30061`, UINT16 LE). The OISM timeout recommendation is 30 seconds, supplied explicitly rather than defaulted. Successful setters have no response fields. The supplement's page-5 note requires saving both host settings before FFD 1.2 registration; the registration workflow itself remains unimplemented.
+OISM settings use `host` (tag `30050`, at most 128 CP866 bytes), `tcpPort` (tag `30051`, UINT16 LE), and `timeoutSeconds` (tag `30052`, UINT16 LE). Key-update settings use `host` (tag `30060`, at most 128 CP866 bytes) and `tcpPort` (tag `30061`, UINT16 LE). The OISM timeout recommendation is 30 seconds, supplied explicitly rather than defaulted. Successful setters have no response fields. The supplement's page-5 note requires saving both host settings before FFD 1.2 registration; configure these settings explicitly before invoking `registerKkt`; that operation does not infer or rewrite them.
 
 `getFiscalStorageFormat` returns `ffdVersion` and `supportedFfdVersion`. The active-format codes are `0` (inactive), `1` (FFD 1.0/1.05 compatibility), `3` (FFD 1.1), and `4` (FFD 1.2); the supported format is `4` for FN 1.2. The query does not change the driver's profile.
 
@@ -155,7 +167,7 @@ These registered base commands are explicitly unavailable under `ffd1.2` and ret
 
 | Base code(s) | Replacement or reason |
 | --- | --- |
-| `0x12`, `0x13`, `0x16` | The supplement defines different registration bytes E1/E2/E3; that registration workflow is not implemented |
+| `0x12`, `0x13`, `0x16` | Use `registerKkt`, which owns the supplement registration sequence E1/E2/E3 and validates RN against the actual KKT serial before E1 |
 | `0x1F`, `0x3F` | Settlement/device details belong to additional receipt data `0x98` |
 | `0x2B`, `0x2C` | Ordinary items and their agent fields use `0x96`; additional receipt fields use `0x98` |
 | `0x2E` | FFD correction data uses the supplement's item/payment/additional-data sequence, including direct correction date in `0x98` |
@@ -166,13 +178,12 @@ These restrictions do not remove or change the base profile's existing functiona
 
 | Supplement code(s) | Source page(s) | Status and reason |
 | --- | --- | --- |
-| `0xE1`, `0xE2`, `0xE3` | 7–8 | FFD registration is not implemented; page-8 reason BYTE and page-35 bitmask wording need an explicit resolved definition before extending it |
 | `0x90`, `0x91`, `0x92`, `0x94`, `0x95` | 14–21 | Marking-code verification/state workflows are not implemented |
 | `0x97` | 24–25 | Marked-item submission is not implemented |
 
 Legacy `0x15` remains unavailable; FFD FN closure uses the context-selected `0x28` definition documented above. The inherited `0x34` remains unavailable because its layout is not documented. The catalogue states reasons for registered unavailable entries; supplement commands not registered in this subset return `404 unknown_command`.
 
-This implementation covers FN closure, selected FFD shifts, unmarked receipt workflows, activation-code submission, host settings, and diagnostics. It does not provide full FFD 1.2 or marked-goods coverage. Required device firmware, fiscal registration, FN state, and manufacturer activation must support the intended commands.
+This implementation covers registration/re-registration, FN closure, selected FFD shifts, unmarked receipt workflows, activation-code submission, host settings, and diagnostics. It does not provide full FFD 1.2 or marked-goods coverage. Required device firmware, fiscal registration, FN state, and manufacturer activation must support the intended commands.
 
 ## Inherited common commands and side effects
 

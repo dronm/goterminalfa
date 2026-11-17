@@ -159,7 +159,7 @@ func parseOperation(raw json.RawMessage, lookup map[string]Command) ([]operation
 			cmd = closure
 		}
 		step.Command = cmd.Definition.Name
-		if cmd.OnError != nil {
+		if cmd.OwnsOperation || cmd.OnError != nil {
 			return nil, fmt.Errorf("commands[%d]: %s owns its complete operation and cannot be nested in executeOperation", index, cmd.Definition.Name)
 		}
 		step.resolved = cmd

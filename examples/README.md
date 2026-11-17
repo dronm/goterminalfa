@@ -65,6 +65,8 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 | `ffd12-get-fiscal-storage-memory.json` | Fresh read-only FN-memory-resource query (`0x9D`) |
 | `ffd12-get-service-parameters.json` | Fresh read-only opaque service-text query (`0xA2`) |
 | `ffd12-apply-activation-code.json` | Apply the vendor's device-specific activation code through standalone, journaled `0xDD`; replace the illustrative code |
+| `ffd12-register-kkt.json` | Initial registration through `registerKkt`; replace the illustrative identity and registration values |
+| `ffd12-reregister-kkt.json` | Re-registration without FN replacement, illustrating reason bit 31 as `2147483648` |
 | `ffd12-read-shift.json` | Fresh read-only `getShiftParameters` (`0x20`) |
 | `ffd12-open-shift.json` | Complete opening with inherited cashier `0x2F`, optional FFD `0xE4`, and the 11-byte final response |
 | `ffd12-close-shift.json` | Complete closing with inherited cashier `0x2F` and optional `0xE5` |
@@ -77,6 +79,8 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 | `ffd12-close-fiscal-storage.json` | Complete FN closure with numeric `0x14`, optional report data `0x17`, and context-selected `0x28` |
 | `ffd12-read-clock.json` | Inherited read-only `0x73` |
 | `ffd12-sync-clock.json` | Explicit journaled clock synchronization through inherited `0x72` |
+
+Registration examples use a checksum-valid RN for INN `7707083893` and KKT factory serial `550101046182`. Replace these illustrative values with the actual issued values, names, OFD details, address, place, and taxation systems. For re-registration, select the report type and reason mask for the intended change. The driver reads the actual factory serial before E1, and a mismatching RN fails without starting registration. The examples call `registerKkt` directly, with one request ID for E1/E2/E3. [The API contract](../docs/API.md#register-or-reregister-a-kkt) lists all optional tags and mode constraints.
 
 FFD receipt items have no base `item` wrapper. The shift `suppressPrint` BYTE differs from the optional receipt `printSuppressionCode` UINT16 value `41029`. E4/E5/E6 are optional commands; if included, their documented fields are required and report attribute/data must be supplied as a pair. The examples include both `0x2F` and E4/E5 to demonstrate the retained and supplement paths, not to require both in every mode.
 

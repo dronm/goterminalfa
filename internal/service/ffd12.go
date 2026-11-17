@@ -47,9 +47,9 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 	// The supplement supplies different commands for these fiscal operations.
 	// Keep their legacy wire schemas out of an explicitly FFD 1.2 device profile.
 	for code, replacement := range map[string]string{
-		"0x12": "0xE1/0xE2/0xE3 registration commands (not implemented in this release)",
-		"0x13": "0xE1/0xE2/0xE3 registration commands (not implemented in this release)",
-		"0x16": "0xE1/0xE2/0xE3 registration commands (not implemented in this release)",
+		"0x12": "registerKkt (the complete 0xE1/0xE2/0xE3 registration operation)",
+		"0x13": "registerKkt (the complete 0xE1/0xE2/0xE3 registration operation)",
+		"0x16": "registerKkt (the complete 0xE1/0xE2/0xE3 registration operation)",
 		"0x1F": "setReceiptAdditionalData (0x98)",
 		"0x2B": "addReceiptItemUnmarked (0x96) for unmarked goods",
 		"0x2C": "item-specific agent fields in addReceiptItemUnmarked (0x96)",
@@ -91,6 +91,7 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 	}
 	commands = append(commands, createReceiptCommand(commands))
 	commands = append(commands, createCorrectionReceiptCommand(commands))
+	commands = append(commands, registerKktCommand())
 	operation := operationCommand(commands)
 	operation.Definition.ProtocolProfile = profile
 	commands = append(commands, operation)

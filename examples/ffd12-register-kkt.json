@@ -1,0 +1,18 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "registerKkt",
+	"requestId": "register-001",
+	"params": {
+		"reportType": 0,
+		"userName": "Example LLC",
+		"settlementAddress": "Moscow",
+		"settlementPlace": "Office",
+		"representativeName": "Director",
+		"ofdInn": "7707083893",
+		"ofdName": "Example OFD",
+		"senderEmail": "sender@example.org",
+		"userInn": "7707083893",
+		"registrationNumber": "0000000001046446",
+		"taxationSystems": 1
+	}
+}
