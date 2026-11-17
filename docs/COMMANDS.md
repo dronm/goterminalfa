@@ -6,7 +6,7 @@ Read-only commands perform fresh device queries and are not journaled. State-cha
 
 Use `GET /api/v1/commands` for the current full definitions. [commands.json](commands.json) is an exported snapshot with all input/output schemas, TLV tags, exact types, enums, flags, preconditions, notes, and original Russian descriptions. [API.md](API.md) explains request formats and execution semantics.
 
-For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 81 entries contain 66 implemented wire commands, 12 explicitly unavailable entries, and three application commands, including the FFD-only `createReceipt`. [FFD12.md](FFD12.md) contains the full supplement audit matrix, new `0x96`/`0x98`/`0xDD`/`0xE4`/`0xE5`/`0xE6` definitions, inherited commands, and remaining scope limits. `applyActivationCode` (`0xDD`) submits the vendor-supplied, device-specific 16-byte code as exactly 32 hexadecimal characters in `activationCodeHex`; it is a standalone journaled write requiring a request ID. Do not use the base table as a substitute for that device's actual schemas.
+For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 89 entries contain 74 implemented wire commands, 12 explicitly unavailable entries, and three application commands, including the FFD-only `createReceipt`. [FFD12.md](FFD12.md) contains the supplement audit matrix, host-setting and diagnostic additions, receipt/report definitions, inherited commands, and remaining scope limits. `applyActivationCode` (`0xDD`) submits the vendor-supplied, device-specific 16-byte code as exactly 32 hexadecimal characters in `activationCodeHex`; it is a standalone journaled write requiring a request ID. Do not use the base table as a substitute for that device's actual schemas.
 
 | Code | Canonical command | Category | Policy | Invocation | Protocol 01.05 page |
 | --- | --- | --- | --- | --- | --- |
@@ -82,6 +82,23 @@ For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the
 | `0xB3` | `depositCash` | cashCounters | State-changing | Direct | 27 |
 | `0xB4` | `withdrawCash` | cashCounters | State-changing | Direct | 27 |
 | `0xBB` | `getPrintLineWidth` | diagnostics | Read-only | Direct | 12 |
+
+## FFD 1.2 host settings and diagnostics
+
+These version 0.7.3 additions are available only under `ffd1.2`, independently of serial or TCP transport. Every getter takes empty parameters and performs a fresh read without journal records. Both setters require every named field and a request ID; neither requires an `executeOperation` wrapper. [API.md](API.md#ffd-12-host-settings-and-diagnostics) describes the returned fields and optional values.
+
+| Code | Canonical command | Policy | Invocation | Supplement page |
+| --- | --- | --- | --- | --- |
+| `0x0F` | `getFiscalStorageFormat` | Read-only | Direct | 5 |
+| `0x82` | `setOismSettings` | State-changing | Direct | 4 |
+| `0x83` | `getOismSettings` | Read-only | Direct | 4 |
+| `0x84` | `setMarkingKeyUpdateSettings` | State-changing | Direct | 4 |
+| `0x85` | `getMarkingKeyUpdateSettings` | Read-only | Direct | 4 |
+| `0x9D` | `getFiscalStorageMemory` | Read-only | Direct | 6 |
+| `0x9E` | `getOismNotificationStatus` | Read-only | Direct | 5 |
+| `0xA2` | `getServiceParameters` | Read-only | Direct | 28 |
+
+OISM setters require `host`, `tcpPort`, and `timeoutSeconds`; key-update setters require `host` and `tcpPort`. Hosts are limited to 128 CP866 bytes; ports and the timeout are UINT16 LE. The recommended OISM timeout of 30 seconds is an explicit caller value. FN memory preserves omission of `notificationStorageUsedPercent`, and service parameters remain an opaque string.
 
 ## Application commands
 

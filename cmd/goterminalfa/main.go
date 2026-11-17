@@ -21,7 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const version = "0.7.2"
+const version = "0.7.3"
 
 func main() {
 	if err := run(); err != nil {

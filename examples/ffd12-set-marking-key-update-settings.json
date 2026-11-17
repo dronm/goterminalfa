@@ -1,0 +1,9 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "setMarkingKeyUpdateSettings",
+	"params": {
+		"host": "keys.example.invalid",
+		"tcpPort": 443
+	},
+	"requestId": "ffd12-key-update-settings-001"
+}

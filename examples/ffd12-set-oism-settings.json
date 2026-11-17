@@ -1,0 +1,10 @@
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "setOismSettings",
+	"params": {
+		"host": "oism.example.invalid",
+		"tcpPort": 443,
+		"timeoutSeconds": 30
+	},
+	"requestId": "ffd12-oism-settings-001"
+}

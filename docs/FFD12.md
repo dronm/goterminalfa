@@ -2,7 +2,7 @@
 
 `goterminalfa` supports an explicit **`ffd1.2`** per-device profile for the implemented parts of **«Протокол информационного обмена ККТ Терминал-ФА — дополнение для работы с ФФД версии 1.2»**. Page references below refer to that supplied supplement unless marked as base.
 
-The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **81 entries**: **66 implemented wire commands**, **12 explicitly unavailable entries**, and three application commands. The FFD-only `createReceipt` adds a conditional shift-opening and receipt workflow; it is not a new wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
+The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **89 entries**: **74 implemented wire commands**, **12 explicitly unavailable entries**, and three application commands. The FFD-only `createReceipt` adds a conditional shift-opening and receipt workflow; it is not a new wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
 
 ## Select a profile and inspect its catalogue
 
@@ -60,14 +60,34 @@ A ten-byte base shift result does not become an FFD result by inventing a warnin
 
 | Code | Canonical command | Page | Schema and execution rule |
 | --- | --- | --- | --- |
+| `0x0F` | `getFiscalStorageFormat` | 5 | Read-only: active and supported FFD version bytes |
+| `0x82` | `setOismSettings` | 4 | Standalone journaled write of complete host, port, and timeout TLVs |
+| `0x83` | `getOismSettings` | 4 | Read-only: host, port, and timeout TLVs |
+| `0x84` | `setMarkingKeyUpdateSettings` | 4 | Standalone journaled write of complete key-update host and port TLVs |
+| `0x85` | `getMarkingKeyUpdateSettings` | 4 | Read-only: key-update host and port TLVs |
 | `0x96` | `addReceiptItemUnmarked` | 22–23 | Flat item TLVs for an ordinary unmarked item; normal or correction receipt operation |
 | `0x98` | `setReceiptAdditionalData` | 26–27 | Receipt/customer/cashier/settlement extras and direct correction fields; normal or correction receipt operation |
+| `0x9D` | `getFiscalStorageMemory` | 6 | Read-only: remaining long-term documents, free short-term KB, optional notification-storage percentage |
+| `0x9E` | `getOismNotificationStatus` | 5 | Read-only: notification state, queue, current number/date, and storage percentage |
+| `0xA2` | `getServiceParameters` | 28 | Read-only: opaque service-parameter string |
 | `0xDD` | `applyActivationCode` | 28 | Standalone journaled write; exactly 32 hexadecimal characters encode the vendor-supplied 16-byte activation code |
 | `0xE4` | `sendShiftOpeningData` | 9 | Optional opening-data command between `0x21` and `0x22` |
 | `0xE5` | `sendShiftClosingData` | 10–11 | Optional closing-data command between `0x29` and `0x2A` |
 | `0xE6` | `sendSettlementReportData` | 12 | Optional report-data command between `0x27` and `0x28` |
 
 The five receipt/report data commands require a complete operation; independent HTTP calls return `400 operation_required`. Use a static `executeOperation` sequence or, for its supported normal receipt path, the FFD-only `createReceipt` workflow. `applyActivationCode` is a standalone write and does not require `executeOperation`. Every state-changing request requires one request ID. Validation occurs before device communication, and a complete sequence retains the device gate and existing transport lifecycle.
+
+### Host settings and diagnostics
+
+The version 0.7.3 settings and diagnostic additions are FFD-only and can be submitted directly. The six getters accept empty parameters, query the device afresh, and bypass the journal even when a request ID is supplied. `setOismSettings` and `setMarkingKeyUpdateSettings` require request IDs and complete parameter objects; neither setter accepts a patch.
+
+OISM settings use `host` (tag `30050`, at most 128 CP866 bytes), `tcpPort` (tag `30051`, UINT16 LE), and `timeoutSeconds` (tag `30052`, UINT16 LE). Key-update settings use `host` (tag `30060`, at most 128 CP866 bytes) and `tcpPort` (tag `30061`, UINT16 LE). The OISM timeout recommendation is 30 seconds, supplied explicitly rather than defaulted. Successful setters have no response fields. The supplement's page-5 note requires saving both host settings before FFD 1.2 registration; the registration workflow itself remains unimplemented.
+
+`getFiscalStorageFormat` returns `ffdVersion` and `supportedFfdVersion`. The active-format codes are `0` (inactive), `1` (FFD 1.0/1.05 compatibility), `3` (FFD 1.1), and `4` (FFD 1.2); the supported format is `4` for FN 1.2. The query does not change the driver's profile.
+
+`getOismNotificationStatus` returns `state`, `queuedNotifications`, `currentNotificationNumber`, `currentNotificationDateTime`, and `storageUsedPercent`. State codes are `0` for no active exchange, `1` for notification reading started, and `2` for awaiting an acknowledgement. The date uses the device-local calendar and is `null` for the documented zero date.
+
+`getFiscalStorageMemory` returns `remainingLongTermDocuments` and `freeShortTermStorageKB`. It includes `notificationStorageUsedPercent` only when the FN returns that optional byte; absence stays absent. `getServiceParameters` returns `parameters` as an opaque CP866-decoded string without inventing a subformat or interpreting it as an activation code. [API.md](API.md#ffd-12-host-settings-and-diagnostics) records all public field names. These additions do not implement marking verification or marked-item submission.
 
 ### Apply a vendor activation code
 
@@ -133,18 +153,14 @@ These restrictions do not remove or change the base profile's existing functiona
 
 | Supplement code(s) | Source page(s) | Status and reason |
 | --- | --- | --- |
-| `0x82`, `0x83` | 4 | OISM host settings are outside this implemented subset |
-| `0x84`, `0x85` | 4 | Marking-verification key-update host settings are not implemented |
-| `0x0F`, `0x9E`, `0x9D` | 5–6 | FN-format/OISM-notification/free-memory queries are not implemented |
 | `0xE1`, `0xE2`, `0xE3` | 7–8 | FFD registration is not implemented; page-8 reason BYTE and page-35 bitmask wording need an explicit resolved definition before extending it |
 | `0x14`, `0x17`, closure `0x28` | 13 | Start/data layouts are present, but the closure finalizer conflicts with settlement `0x28` on page 12 and has a different response; complete closure remains unavailable |
 | `0x90`, `0x91`, `0x92`, `0x94`, `0x95` | 14–21 | Marking-code verification/state workflows are not implemented |
 | `0x97` | 24–25 | Marked-item submission is not implemented |
-| `0xA2` | 28 | Service-parameter query is not implemented |
 
 The base `0x15` closure finalizer is not guessed from the supplement's conflicting `0x28`. The inherited `0x34` remains unavailable because its layout is not documented. The catalogue states reasons for registered unavailable entries; supplement commands not registered in this subset return `404 unknown_command`.
 
-This is an implementation of the selected FFD shifts, unmarked receipt workflows, and activation-code submission, not a claim of full FFD 1.2 or marked-goods coverage. Required device firmware, fiscal registration, FN state, and manufacturer activation must support the intended commands.
+This implementation covers selected FFD shifts, unmarked receipt workflows, activation-code submission, host settings, and diagnostics. It does not provide full FFD 1.2 or marked-goods coverage. Required device firmware, fiscal registration, FN state, and manufacturer activation must support the intended commands.
 
 ## Inherited common commands and side effects
 
@@ -162,6 +178,14 @@ Use `config.ffd12.example.json` for these `cashdesk-ffd12` requests. Existing un
 
 | File | Purpose |
 | --- | --- |
+| `ffd12-get-oism-settings.json` | Fresh read of OISM host, port, and timeout |
+| `ffd12-set-oism-settings.json` | Complete OISM settings write; replace placeholder host and port |
+| `ffd12-get-marking-key-update-settings.json` | Fresh read of marking-key-update host and port |
+| `ffd12-set-marking-key-update-settings.json` | Complete key-update settings write; replace placeholder host and port |
+| `ffd12-get-fiscal-storage-format.json` | Fresh read of active and supported FFD version codes |
+| `ffd12-get-oism-notification-status.json` | Fresh read of OISM notification state and storage usage |
+| `ffd12-get-fiscal-storage-memory.json` | Fresh read of FN memory resources |
+| `ffd12-get-service-parameters.json` | Fresh read of opaque service-parameter text |
 | `ffd12-apply-activation-code.json` | Apply the vendor's device-specific 16-byte activation code through journaled `0xDD`; replace the illustrative hexadecimal value |
 | `ffd12-read-shift.json` | Fresh read-only `0x20` state check |
 | `ffd12-open-shift.json` | Complete `0x21` → `0x2F` → optional `0xE4` → `0x22` sequence |

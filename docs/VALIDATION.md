@@ -1,8 +1,18 @@
 # Validation
 
+## FFD host settings and diagnostics (version 0.7.3)
+
+Version 0.7.3 adds the FFD-only OISM and marking-key-update settings pairs (`0x82`–`0x85`), FN-format (`0x0F`), OISM-notification (`0x9E`), FN-memory (`0x9D`), and opaque service-parameter (`0xA2`) reads. The catalogue contains 89 entries: 74 implemented wire commands, 12 unavailable entries, and three application commands. The default base catalogue is unchanged.
+
+Regression tests cover exact TLV tags and encoded bounds, complete setter forms, the explicit OISM timeout, notification zero dates, optional memory-byte omission, CP866 service text, FFD-only discovery, fresh unjournaled getters, and journaled setter replay. Eight individual JSON examples distinguish six reads from two deliberate settings writes. Example `.invalid` hosts and port `443` are placeholders; they are not production endpoints or device defaults.
+
+Validated on Linux amd64 with Go 1.25.0: `go test -mod=readonly ./...`, `go vet -mod=readonly ./...`, and a `CGO_ENABLED=0` production build all passed. The source-archive build used `-buildvcs=false`; the executable reported `goterminalfa 0.7.3`. All documented JSON examples also passed catalogue validation after the eight new examples were added.
+
+A compiled-server simulation over loopback TCP verified all eight command bytes and their CRC-framed exchanges, exact setter TLVs after factory-serial verification, setter replay without another write, and fresh reads for all six getters with repeated request IDs. It checked both notification-date forms, both FN-memory response lengths, and CP866 service text including whitespace. The test used a temporary configuration and journal, with no physical KKT connected. Runtime discovery regenerated `commands-ffd12.json` with 89 entries; all previous 81 FFD definitions and the base catalogue remained unchanged.
+
 ## Activation-code submission (version 0.7.2)
 
-The current `ffd1.2` catalogue contains 81 entries: 66 implemented wire commands, 12 explicitly unavailable entries, and three application commands. The added `applyActivationCode` (`0xDD`) is a standalone journaled write; the base catalogue is unchanged.
+At version 0.7.2, the `ffd1.2` catalogue contained 81 entries: 66 implemented wire commands, 12 explicitly unavailable entries, and three application commands. The added `applyActivationCode` (`0xDD`) is a standalone journaled write; the base catalogue was unchanged.
 
 Activation regression tests cover exact 16-byte wire encoding, rejection of invalid codes and missing request IDs before device communication, hexadecimal aliases, FFD-only discovery, and case-normalized idempotency replay. Error cases cover device rejection and uncertain outcomes after lost responses. These checks use simulated devices and temporary journals; they do not establish acceptance of a vendor code by a physical KKT.
 

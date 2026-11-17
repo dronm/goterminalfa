@@ -264,6 +264,44 @@ The repeated step returns `data.chunks`, containing each decoded `0x36` result, 
 
 The receipt example is a complete sequence with illustrative registration-dependent values. Adjust those values before deliberately submitting it to a registered device.
 
+## FFD 1.2 host settings and diagnostics
+
+These commands are available only for devices configured with `protocolProfile: "ffd1.2"`. All six getters accept empty `params: {}` and perform fresh queries without journal records, even if a request ID is supplied. Both setters are standalone writes requiring a request ID; all listed parameters must be present. Their successful response has `data: {}`.
+
+| Code | Command | Parameters or returned `data` |
+| --- | --- | --- |
+| `0x83` | `getOismSettings` | Returns `host`, `tcpPort`, `timeoutSeconds` |
+| `0x82` | `setOismSettings` | Requires `host`, `tcpPort`, `timeoutSeconds` |
+| `0x85` | `getMarkingKeyUpdateSettings` | Returns `host`, `tcpPort` |
+| `0x84` | `setMarkingKeyUpdateSettings` | Requires `host`, `tcpPort` |
+| `0x0F` | `getFiscalStorageFormat` | Returns `ffdVersion`, `supportedFfdVersion` |
+| `0x9E` | `getOismNotificationStatus` | Returns `state`, `queuedNotifications`, `currentNotificationNumber`, `currentNotificationDateTime`, `storageUsedPercent` |
+| `0x9D` | `getFiscalStorageMemory` | Returns `remainingLongTermDocuments`, `freeShortTermStorageKB`, and optional `notificationStorageUsedPercent` |
+| `0xA2` | `getServiceParameters` | Returns `parameters`, an opaque CP866-decoded string |
+
+Host values are strings limited to 128 encoded CP866 bytes. Ports and `timeoutSeconds` are JSON integers encoded as UINT16 LE. The supplement recommends 30 seconds for the OISM timeout; the caller must supply it explicitly, and the driver does not insert a default. Both setters replace the complete documented settings form. The corresponding getters return TLV fields using tags `30050`/`30051`/`30052` for OISM and `30060`/`30061` for key updates.
+
+For example, this OISM request uses placeholder host and port values; replace them with the settings for the actual KKT before submitting:
+
+```json
+{
+	"deviceId": "cashdesk-ffd12",
+	"cmd": "setOismSettings",
+	"params": {
+		"host": "oism.example.invalid",
+		"tcpPort": 443,
+		"timeoutSeconds": 30
+	},
+	"requestId": "ffd12-oism-settings-001"
+}
+```
+
+The FN-format result uses byte codes: `ffdVersion` is `0` for an inactive FN, `1` for FFD 1.0/1.05 compatibility, `3` for FFD 1.1, or `4` for FFD 1.2. `supportedFfdVersion` reports the supported format code; the supplement specifies `4` for FN 1.2. Reading these values does not switch the configured protocol profile.
+
+OISM notification `state` is `0` for no active exchange, `1` for notification reading started, or `2` while awaiting an acknowledgement. `currentNotificationDateTime` uses device-local `YYYY-MM-DDTHH:mm` and is `null` for the documented all-zero date. FN memory reports an approximate remaining count of long-term documents and free short-term storage in kilobytes. When its notification-storage byte is absent, `notificationStorageUsedPercent` is omitted rather than synthesized as zero.
+
+`getServiceParameters` preserves the returned service text without interpreting it as named fields or an activation code. Its output format beyond an ASCII string is not documented by the supplement. Host settings and these diagnostics do not provide marking verification or marked-item receipt support. See [the individual request examples](../examples/README.md#ffd-12-examples) and supplement pages 4–6 and 28.
+
 ## FFD 1.2 activation code
 
 `applyActivationCode` (`0xDD`) is available only for devices configured with `protocolProfile: "ffd1.2"`. It applies the activation code supplied by the vendor for the particular KKT. The driver does not generate or retrieve a code.

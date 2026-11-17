@@ -681,6 +681,57 @@
 			}
 		},
 		{
+			"name": "getFiscalStorageFormat",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0x0F",
+				"0x0f"
+			],
+			"protocolCode": "0x0F",
+			"category": "diagnostics",
+			"titleRu": "Запрос формата ФФД, используемого в ФН",
+			"description": "Read the active and supported fiscal data format codes as two raw bytes. The supplement documents supported code 4 for FN 1.2; unknown future response codes are preserved.",
+			"descriptionRu": "Запрос формата ФФД, используемого в ФН (0x0F). Входные параметры отсутствуют. Ответ: код используемого формата ФФД, BYTE (0 — ФН не активизирован, 1 — ФФД 1.0/1.05, 3 — ФФД 1.1, 4 — ФФД 1.2); код поддерживаемой версии ФФД, BYTE (для ФН 1.2 — 4).",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "ffdVersion",
+					"titleRu": "Код формата ФФД, используемый в ФН",
+					"description": "Active fiscal data format selected when the fiscal storage was activated; 0 means not activated.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "ФН не активизирован",
+						"1": "ФФД 1.0 (1.05)",
+						"3": "ФФД 1.1",
+						"4": "ФФД 1.2"
+					}
+				},
+				{
+					"name": "supportedFfdVersion",
+					"titleRu": "Код версии ФФД, которую может поддерживать ФН",
+					"description": "Maximum fiscal data format supported by the fiscal storage; the supplement specifies 4 for an FN 1.2. Unrecognized firmware values remain available as raw numeric codes.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true
+				}
+			],
+			"notes": [
+				"The response is exactly two bytes. Response values outside the documented dictionary are preserved for newer firmware."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 5
+			}
+		},
+		{
 			"name": "cancelDocument",
 			"protocolProfile": "ffd1.2",
 			"aliases": [
@@ -4561,6 +4612,215 @@
 			}
 		},
 		{
+			"name": "setOismSettings",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0x82"
+			],
+			"protocolCode": "0x82",
+			"category": "settings",
+			"titleRu": "Установить настройки взаимодействия с хостом ОИСМ",
+			"description": "Set all documented OISM host settings: CP866 host text, TCP port, and response timeout in seconds. The recommended 30-second timeout must be supplied explicitly if desired.",
+			"descriptionRu": "Установить настройки взаимодействия с хостом ОИСМ (0x82). Адрес хоста: TLV, тег 30050, ASCII, не более 128 символов. TCP-порт: тег 30051, UINT16 LE. Таймаут ожидания ответа в секундах: тег 30052, UINT16 LE; рекомендуется 30 секунд. Все параметры передаются явно. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "host",
+					"titleRu": "Адрес хоста ОИСМ",
+					"description": "Configured host text, at most 128 CP866 bytes. No host syntax or positive minimum length is specified.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 128,
+					"required": true,
+					"tag": 30050
+				},
+				{
+					"name": "tcpPort",
+					"titleRu": "TCP-порт хоста ОИСМ",
+					"description": "TCP port represented as a little-endian UINT16; no positive minimum is specified.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30051
+				},
+				{
+					"name": "timeoutSeconds",
+					"titleRu": "Таймаут ожидания ответа от хоста ОИСМ",
+					"description": "Response timeout in seconds. The recommended value 30 is not an implicit default.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30052,
+					"unit": "seconds"
+				}
+			],
+			"output": [],
+			"notes": [
+				"Before FFD 1.2 registration, save both the OISM host and marking-verification key-update host settings as required on supplement page 5.",
+				"The supplement specifies no host syntax or positive minimum host length, port, or timeout. No values are inferred."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 4
+			}
+		},
+		{
+			"name": "getOismSettings",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0x83"
+			],
+			"protocolCode": "0x83",
+			"category": "settings",
+			"titleRu": "Запрос настроек взаимодействия с хостом ОИСМ из ККТ",
+			"description": "Read OISM host settings as TLVs: CP866 host text, TCP port, and response timeout in seconds. An empty configured host is preserved; unknown and repeated unknown tags are retained in order.",
+			"descriptionRu": "Запрос настроек взаимодействия с хостом ОИСМ из ККТ (0x83). Входные параметры: нет. Выходные TLV: адрес хоста, тег 30050, ASCII, не более 128 символов; TCP-порт, тег 30051, UINT16 LE; таймаут ожидания ответа в секундах, тег 30052, UINT16 LE.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "tlv",
+			"input": [],
+			"output": [
+				{
+					"name": "host",
+					"titleRu": "Адрес хоста ОИСМ",
+					"description": "Configured host text, at most 128 CP866 bytes. No host syntax or positive minimum length is specified.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 128,
+					"required": true,
+					"tag": 30050
+				},
+				{
+					"name": "tcpPort",
+					"titleRu": "TCP-порт хоста ОИСМ",
+					"description": "TCP port represented as a little-endian UINT16; no positive minimum is specified.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30051
+				},
+				{
+					"name": "timeoutSeconds",
+					"titleRu": "Таймаут ожидания ответа от хоста ОИСМ",
+					"description": "Response timeout in seconds. The recommended value 30 is not an implicit default.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30052,
+					"unit": "seconds"
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 4
+			}
+		},
+		{
+			"name": "setMarkingKeyUpdateSettings",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0x84"
+			],
+			"protocolCode": "0x84",
+			"category": "settings",
+			"titleRu": "Установить хост обновления ключей проверки КМ",
+			"description": "Set the marking-verification key-update host and TCP port. Both documented fields must be supplied; no host or port is inferred.",
+			"descriptionRu": "Установить хост обновления ключей проверки КМ (0x84). Входные TLV: адрес хоста, тег 30060, ASCII, не более 128 символов; TCP-порт, тег 30061, UINT16 LE. Оба параметра обязательны. Выходные данные: нет.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "tlv",
+			"responseLayout": "positional",
+			"input": [
+				{
+					"name": "host",
+					"titleRu": "Адрес хоста обновления ключей проверки КМ",
+					"description": "Configured host text, at most 128 CP866 bytes. No host syntax or positive minimum length is specified.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 128,
+					"required": true,
+					"tag": 30060
+				},
+				{
+					"name": "tcpPort",
+					"titleRu": "TCP-порт хоста обновления ключей проверки КМ",
+					"description": "TCP port represented as a little-endian UINT16; no positive minimum is specified.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30061
+				}
+			],
+			"output": [],
+			"notes": [
+				"Relevant to KKT registered for marked-goods sales in data-transfer mode when the FN cannot store the marking-verification key-update host address (supplement page 5).",
+				"Before FFD 1.2 registration, save both the OISM host and marking-verification key-update host settings.",
+				"The supplement specifies no host syntax or positive minimum host length or port."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 4
+			}
+		},
+		{
+			"name": "getMarkingKeyUpdateSettings",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0x85"
+			],
+			"protocolCode": "0x85",
+			"category": "settings",
+			"titleRu": "Запрос хоста обновления ключей проверки КМ из ККТ",
+			"description": "Read the marking-verification key-update host and TCP port as TLVs. An empty configured host is preserved; unknown and repeated unknown tags are retained in order.",
+			"descriptionRu": "Запрос хоста обновления ключей проверки КМ из ККТ (0x85). Входные параметры: нет. Выходные TLV: адрес хоста, тег 30060, ASCII, не более 128 символов; TCP-порт, тег 30061, UINT16 LE.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "tlv",
+			"input": [],
+			"output": [
+				{
+					"name": "host",
+					"titleRu": "Адрес хоста обновления ключей проверки КМ",
+					"description": "Configured host text, at most 128 CP866 bytes. No host syntax or positive minimum length is specified.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"maxLength": 128,
+					"required": true,
+					"tag": 30060
+				},
+				{
+					"name": "tcpPort",
+					"titleRu": "TCP-порт хоста обновления ключей проверки КМ",
+					"description": "TCP port represented as a little-endian UINT16; no positive minimum is specified.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true,
+					"tag": 30061
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 4
+			}
+		},
+		{
 			"name": "addReceiptItemUnmarked",
 			"protocolProfile": "ffd1.2",
 			"aliases": [
@@ -5332,6 +5592,174 @@
 				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
 				"version": "FFD 1.2",
 				"page": 26
+			}
+		},
+		{
+			"name": "getFiscalStorageMemory",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0x9D",
+				"0x9d"
+			],
+			"protocolCode": "0x9D",
+			"category": "diagnostics",
+			"titleRu": "Запрос ресурса свободной памяти в ФН",
+			"description": "Read the estimated remaining five-year documents and free thirty-day storage in kilobytes. The optional ninth response byte reports marked-goods notification storage usage.",
+			"descriptionRu": "Запрос ресурса свободной памяти в ФН (0x9D). Входные параметры отсутствуют. Ответ: ориентировочное количество документов 5-летнего хранения UINT32 LE; свободная область данных 30-дневного хранения в килобайтах UINT32 LE. Необязательный завершающий BYTE — процент заполнения области хранения уведомлений ОИСМ; отсутствует при регистрации ФН без поддержки маркированных товаров.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "remainingLongTermDocuments",
+					"titleRu": "Ресурс данных 5-летнего хранения",
+					"description": "Estimated number of five-year documents that can still be created in the fiscal storage.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true,
+					"unit": "documents"
+				},
+				{
+					"name": "freeShortTermStorageKB",
+					"titleRu": "Ресурс данных 30-дневного хранения",
+					"description": "Free storage for thirty-day documents, in kilobytes.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true,
+					"unit": "KB"
+				},
+				{
+					"name": "notificationStorageUsedPercent",
+					"titleRu": "Ресурс для хранения уведомлений о реализации маркированного товара",
+					"description": "Percentage of notification storage used; absent when the FN is registered without marked-goods support.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"unit": "percent",
+					"requiredIf": "Returned only when the fiscal storage is registered with marked-goods support"
+				}
+			],
+			"notes": [
+				"The response is exactly eight or nine bytes. An omitted notification usage byte remains absent from the JSON response; it is not replaced with zero."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 6
+			}
+		},
+		{
+			"name": "getOismNotificationStatus",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0x9E",
+				"0x9e"
+			],
+			"protocolCode": "0x9E",
+			"category": "diagnostics",
+			"titleRu": "Запрос состояния передачи уведомлений ОИСМ",
+			"description": "Read OISM notification exchange state, queue size, current notification number and local date/time, and notification storage usage. An all-zero date is returned as null.",
+			"descriptionRu": "Запрос состояния передачи уведомлений ОИСМ (0x9E). Входные параметры отсутствуют. Ответ: состояние передачи BYTE, количество уведомлений в очереди UINT16 LE, номер текущего уведомления UINT32 LE, дата и время текущего уведомления YMDHm (5 байт), процент заполнения области хранения уведомлений BYTE. Нулевая дата означает, что на все уведомления получены квитанции.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "state",
+					"titleRu": "Состояние передачи уведомлений",
+					"description": "OISM notification exchange state; unknown firmware values are preserved.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"enum": {
+						"0": "Нет активного обмена",
+						"1": "Начато чтение уведомления",
+						"2": "Ожидание квитанции на уведомление"
+					}
+				},
+				{
+					"name": "queuedNotifications",
+					"titleRu": "Количество уведомлений в очереди",
+					"description": "Notifications awaiting acknowledgement; zero when all notifications have acknowledgements.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "currentNotificationNumber",
+					"titleRu": "Номер текущего уведомления",
+					"description": "Number of the notification being sent or awaiting acknowledgement.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": true
+				},
+				{
+					"name": "currentNotificationDateTime",
+					"titleRu": "Дата и время текущего уведомления",
+					"description": "Device-local YMDHm calendar value, or null when all five date bytes are zero; no timezone conversion is applied.",
+					"jsonType": "string",
+					"wireType": "DATETIME5",
+					"required": true,
+					"allowZeroDate": true
+				},
+				{
+					"name": "storageUsedPercent",
+					"titleRu": "Процент заполнения области хранения уведомлений",
+					"description": "Percentage of notification storage used, returned as the device's raw byte value.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": true,
+					"unit": "percent"
+				}
+			],
+			"notes": [
+				"The response is exactly thirteen bytes. Unrecognized state values are preserved as raw numeric codes."
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 5
+			}
+		},
+		{
+			"name": "getServiceParameters",
+			"protocolProfile": "ffd1.2",
+			"aliases": [
+				"0xA2",
+				"0xa2"
+			],
+			"protocolCode": "0xA2",
+			"category": "diagnostics",
+			"titleRu": "Запрос служебных параметров ККТ",
+			"description": "Read the KKT service parameters as an opaque CP866 string. Preserve the complete response text, including whitespace and an empty value; the supplement defines no internal field format.",
+			"descriptionRu": "Запрос служебных параметров ККТ (0xA2). Входные параметры отсутствуют. Выходные данные: строка символов ASCII[N]. Содержание строки не интерпретируется драйвером.",
+			"readOnly": true,
+			"idempotencyRequired": false,
+			"implemented": true,
+			"requestLayout": "positional",
+			"responseLayout": "positional",
+			"input": [],
+			"output": [
+				{
+					"name": "parameters",
+					"titleRu": "Служебные параметры ККТ",
+					"description": "Opaque CP866 service-parameter text; no undocumented splitting, trimming, or interpretation is performed.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"required": true
+				}
+			],
+			"source": {
+				"document": "Протокол информационного обмена ККТ Терминал-ФА: дополнение для работы с ФФД версии 1.2",
+				"version": "FFD 1.2",
+				"page": 28
 			}
 		},
 		{

@@ -56,6 +56,14 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 
 | File | Purpose |
 | --- | --- |
+| `ffd12-get-oism-settings.json` | Fresh read-only OISM host, port, and timeout query (`0x83`) |
+| `ffd12-set-oism-settings.json` | Journaled complete OISM settings write (`0x82`); replace placeholder host and port |
+| `ffd12-get-marking-key-update-settings.json` | Fresh read-only key-update host and port query (`0x85`) |
+| `ffd12-set-marking-key-update-settings.json` | Journaled complete key-update settings write (`0x84`); replace placeholder host and port |
+| `ffd12-get-fiscal-storage-format.json` | Fresh read-only active/supported FFD-format query (`0x0F`) |
+| `ffd12-get-oism-notification-status.json` | Fresh read-only notification-state query (`0x9E`) |
+| `ffd12-get-fiscal-storage-memory.json` | Fresh read-only FN-memory-resource query (`0x9D`) |
+| `ffd12-get-service-parameters.json` | Fresh read-only opaque service-text query (`0xA2`) |
 | `ffd12-apply-activation-code.json` | Apply the vendor's device-specific activation code through standalone, journaled `0xDD`; replace the illustrative code |
 | `ffd12-read-shift.json` | Fresh read-only `getShiftParameters` (`0x20`) |
 | `ffd12-open-shift.json` | Complete opening with inherited cashier `0x2F`, optional FFD `0xE4`, and the 11-byte final response |
@@ -69,6 +77,8 @@ Load [../config.ffd12.example.json](../config.ffd12.example.json) and use its `c
 | `ffd12-sync-clock.json` | Explicit journaled clock synchronization through inherited `0x72` |
 
 FFD receipt items have no base `item` wrapper. The shift `suppressPrint` BYTE differs from the optional receipt `printSuppressionCode` UINT16 value `41029`. E4/E5/E6 are optional commands; if included, their documented fields are required and report attribute/data must be supplied as a pair. The examples include both `0x2F` and E4/E5 to demonstrate the retained and supplement paths, not to require both in every mode.
+
+The six new `ffd12-get-*` examples omit request IDs and query afresh without journal records. The two `ffd12-set-*` examples require complete parameters and a request ID. Hosts `oism.example.invalid` and `keys.example.invalid`, and port `443`, are placeholders; replace them with the settings for the actual KKT. The OISM timeout is explicitly `30` seconds, as recommended by the supplement, rather than an implicit driver default. Setters return `data: {}`. These host settings do not implement marking-code verification or marked-item receipts.
 
 All fiscal examples remain deliberate mutation templates. Replace illustrative cashier/address, tax/payment, and correction-date values for the actual device. No marking-code verification or marked-item workflow is implemented. Settings reads remain reads; their setters, including `0x72`/`0x74`/`0x76`/`0x80`, still require request IDs under this profile.
 
