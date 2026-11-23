@@ -473,6 +473,10 @@ The non-default protocol profile is included in the request fingerprint. Changin
 
 Errors contain a machine `error.code`, a readable `error.message`, and, for a KKT protocol rejection, its numeric `error.deviceCode`. Parsed request identity is retained where available.
 
+For `device_error`, the message includes the hexadecimal code and its Russian description from the configured protocol profile. An undocumented code gets a Russian fallback with the original hexadecimal value. The same descriptions appear in receipt diagnostics at `data.failure` and `data.cleanup.error`.
+
+When a later step in `executeOperation` or `registerKkt` is rejected after earlier changes may have taken effect, the response is `409 outcome_unknown`. Its data contains the one-based `failedStep`, canonical `failedStage`, and the device error in `failure`. The driver stores these diagnostics for matching replays and request lookup.
+
 | HTTP status | Error codes |
 | --- | --- |
 | `400` | `invalid_request`, `operation_required` |

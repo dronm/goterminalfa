@@ -216,9 +216,7 @@ func createReceiptWorkflowCommand(commands []Command, workflow receiptWorkflow) 
 			if !errors.As(cause, &failure) {
 				failure = &createReceiptError{Cause: cause, Unknown: true, Result: r, Step: r.FailedStage, Command: r.FailedCommand, Operation: workflow.name}
 			}
-			var primaryResponse Response
-			_ = json.Unmarshal(executionFailure(Request{}, failure.Cause).Body, &primaryResponse)
-			r.Failure = primaryResponse.Error
+			_, r.Failure = executionError(original.ProtocolProfile, failure.Cause)
 			r.Cleanup = &receiptCleanup{}
 			if !r.documentOwned {
 				r.Cleanup.SkippedReason = "no_confirmed_document_opened_by_request"
@@ -242,9 +240,7 @@ func createReceiptWorkflowCommand(commands []Command, workflow receiptWorkflow) 
 			})
 			if cleanupErr != nil {
 				failure.Unknown = true
-				var response Response
-				_ = json.Unmarshal(executionFailure(Request{}, cleanupErr).Body, &response)
-				r.Cleanup.Error = response.Error
+				_, r.Cleanup.Error = executionError(original.ProtocolProfile, cleanupErr)
 			} else {
 				r.Cleanup.Succeeded = true
 			}
@@ -283,18 +279,13 @@ func definiteReceiptFailure(err error) bool {
 	return errors.As(err, &rejection) || errors.As(err, &notSent) || errors.As(err, &notExecuted)
 }
 
-func createReceiptFailure(req Request, failure *createReceiptError) Reply {
+func createReceiptFailure(req Request, profile string, failure *createReceiptError) Reply {
 	if failure.Unknown {
 		return JSONReply(409, Response{DeviceID: req.DeviceID, Command: req.Command, RequestID: req.RequestID, Status: "unknown", Data: failure.Result,
 			Error: &Error{Code: "outcome_unknown", Message: "receipt or shift outcome may be unknown; cancellation does not undo a finalized fiscal document; reconcile before taking further action; automatic retry is blocked"}})
 	}
-	standard := executionFailure(req, failure.Cause)
-	var response Response
-	if err := json.Unmarshal(standard.Body, &response); err != nil {
-		return standard
-	}
-	response.Data = failure.Result
-	return JSONReply(standard.HTTPStatus, response)
+	status, rejection := executionError(profile, failure.Cause)
+	return failedReply(req, status, rejection, failure.Result)
 }
 
 func prepareReceipt(raw json.RawMessage, commands map[byte]Command, workflow receiptWorkflow) (preparedReceipt, error) {

@@ -59,8 +59,12 @@ func JSONReply(status int, response Response) Reply {
 }
 
 func Failure(req Request, status int, code, message string) Reply {
+	return failedReply(req, status, &Error{Code: code, Message: message}, nil)
+}
+
+func failedReply(req Request, status int, failure *Error, data any) Reply {
 	return JSONReply(status, Response{DeviceID: req.DeviceID, Command: req.Command, RequestID: req.RequestID,
-		Status: "failed", Error: &Error{Code: code, Message: message}})
+		Status: "failed", Data: data, Error: failure})
 }
 
 type Device struct {
@@ -320,7 +324,7 @@ func (s *Service) Execute(ctx context.Context, req Request) Reply {
 	response := JSONReply(200, Response{DeviceID: req.DeviceID, Command: req.Command,
 		RequestID: req.RequestID, Status: "completed", Data: data})
 	if execErr != nil {
-		response = executionFailure(req, execErr)
+		response = executionFailure(req, device.ProtocolProfile, execErr)
 		s.logger.WithFields(logrus.Fields{"deviceId": req.DeviceID, "cmd": req.Command, "requestId": req.RequestID}).WithError(execErr).Warn("device operation failed")
 	}
 
@@ -344,21 +348,21 @@ func (s *Service) Execute(ctx context.Context, req Request) Reply {
 			unknown = execErr != nil && !errors.As(execErr, &rejection) && !errors.As(execErr, &notExecuted) && !errors.As(execErr, &notSent)
 		}
 		if unknown || response.HTTPStatus == 500 {
-			if hasReceiptFailure && receiptFailure.Unknown && response.HTTPStatus != 500 {
+			if response.HTTPStatus == http.StatusConflict {
 				if err := s.journal.MarkUnknownWithResponse(persistCtx, req.DeviceID, req.RequestID, response.Body); err != nil {
-					s.logger.WithError(err).Error("persist receipt unknown outcome failed; claim retained")
-					return unknownReply(req)
+					s.logger.WithError(err).Error("persist unknown outcome with diagnostics failed; claim retained")
+					return unknownReply(req, nil)
 				}
 				return response
 			}
 			if err := s.journal.MarkUnknown(persistCtx, req.DeviceID, req.RequestID); err != nil {
 				s.logger.WithError(err).Error("persist unknown outcome failed; claim retained")
 			}
-			return unknownReply(req)
+			return unknownReply(req, nil)
 		}
 		if err := s.journal.Complete(persistCtx, req.DeviceID, req.RequestID, response.HTTPStatus, response.Body); err != nil {
 			s.logger.WithError(err).Error("persist result failed; claim retained")
-			return unknownReply(req)
+			return unknownReply(req, nil)
 		}
 	}
 	return response
@@ -428,34 +432,56 @@ func (e *IdentityError) Error() string {
 	return fmt.Sprintf("expected KKT serial %s, received %s", e.Expected, e.Actual)
 }
 
-func executionFailure(req Request, err error) Reply {
+func executionFailure(req Request, profile string, err error) Reply {
 	var receiptFailure *createReceiptError
+	if errors.As(err, &receiptFailure) {
+		return createReceiptFailure(req, profile, receiptFailure)
+	}
+	var step *operationStepError
+	if errors.As(err, &step) && step.Uncertain {
+		// A rejection explains the failed step. Earlier commands may still have taken effect.
+		var rejection *protocol.DeviceError
+		if errors.As(step.Cause, &rejection) {
+			return unknownReply(req, map[string]any{
+				"failedStep":  step.Step,
+				"failedStage": step.Command,
+				"failure":     deviceRejection(profile, rejection.Code),
+			})
+		}
+	}
+	status, failure := executionError(profile, err)
+	return failedReply(req, status, failure, nil)
+}
+
+func executionError(profile string, err error) (int, *Error) {
 	var validation *requestValidationError
 	var rejection *protocol.DeviceError
 	var identity *IdentityError
 	var serial *terminalfa.InvalidSerialError
 	switch {
 	case errors.As(err, &validation):
-		return Failure(req, 400, "invalid_request", err.Error())
-	case errors.As(err, &receiptFailure):
-		return createReceiptFailure(req, receiptFailure)
+		return http.StatusBadRequest, &Error{Code: "invalid_request", Message: err.Error()}
 	case errors.As(err, &rejection):
-		return JSONReply(502, Response{DeviceID: req.DeviceID, Command: req.Command, RequestID: req.RequestID,
-			Status: "failed", Error: &Error{Code: "device_error", Message: err.Error(), DeviceCode: &rejection.Code}})
+		failure := deviceRejection(profile, rejection.Code)
+		var step *operationStepError
+		if errors.As(err, &step) {
+			failure.Message = fmt.Sprintf("Шаг %d (%s). %s", step.Step, step.Command, failure.Message)
+		}
+		return http.StatusBadGateway, failure
 	case errors.As(err, &identity):
-		return Failure(req, 502, "device_identity_mismatch", err.Error())
+		return http.StatusBadGateway, &Error{Code: "device_identity_mismatch", Message: err.Error()}
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
-		return Failure(req, 504, "device_timeout", "device operation timed out or was canceled")
+		return http.StatusGatewayTimeout, &Error{Code: "device_timeout", Message: "device operation timed out or was canceled"}
 	case errors.Is(err, protocol.ErrMalformedFrame), errors.Is(err, protocol.ErrChecksumMismatch), errors.As(err, &serial):
-		return Failure(req, 502, "protocol_error", err.Error())
+		return http.StatusBadGateway, &Error{Code: "protocol_error", Message: err.Error()}
 	default:
-		return Failure(req, 502, "transport_error", "device communication failed; see server log")
+		return http.StatusBadGateway, &Error{Code: "transport_error", Message: "device communication failed; see server log"}
 	}
 }
 
-func unknownReply(req Request) Reply {
-	return JSONReply(409, Response{DeviceID: req.DeviceID, Command: req.Command, RequestID: req.RequestID,
-		Status: "unknown", Error: &Error{Code: "outcome_unknown", Message: "operation may have executed; reconcile with the device before taking further action; automatic retry is blocked"}})
+func unknownReply(req Request, data any) Reply {
+	return JSONReply(http.StatusConflict, Response{DeviceID: req.DeviceID, Command: req.Command, RequestID: req.RequestID,
+		Status: "unknown", Data: data, Error: &Error{Code: "outcome_unknown", Message: "operation may have executed; reconcile with the device before taking further action; automatic retry is blocked"}})
 }
 
 func recordedReply(req Request, record store.Record) Reply {
@@ -469,9 +495,9 @@ func recordedReply(req Request, record store.Record) Reply {
 		if len(record.Response) != 0 {
 			return Reply{HTTPStatus: http.StatusConflict, Body: record.Response, Replayed: true}
 		}
-		return unknownReply(req)
+		return unknownReply(req, nil)
 	default:
-		return unknownReply(req)
+		return unknownReply(req, nil)
 	}
 }
 

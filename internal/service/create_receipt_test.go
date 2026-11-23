@@ -369,6 +369,58 @@ func TestCreateReceiptDefiniteAndUncertainFailureCleanup(t *testing.T) {
 	}
 }
 
+func TestCreateReceiptReportsRussianDeviceErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		cancelErr error
+		status    int
+		code      string
+	}{
+		{"canceled", nil, 502, "device_error"},
+		{"cancellation rejected", &protocol.DeviceError{Code: 0x57}, 409, "outcome_unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			transport := &receiptTestTransport{state: 1}
+			transport.respond = func(_ context.Context, call receiptWireCall) ([]byte, error) {
+				switch call.Code {
+				case 0x24:
+					return nil, &protocol.DeviceError{Code: 0xC9}
+				case 0x10:
+					return nil, tc.cancelErr
+				default:
+					return receiptTestResponse(call.Code, 1), nil
+				}
+			}
+			app, _, _ := receiptTestApp(t, transport, "")
+			reply := app.Execute(context.Background(), receiptTestRequest(t, receiptTestParams()))
+			requireError(t, reply, tc.status, tc.code)
+			var response struct {
+				Error Error               `json:"error"`
+				Data  createReceiptResult `json:"data"`
+			}
+			if err := json.Unmarshal(reply.Body, &response); err != nil {
+				t.Fatal(err)
+			}
+			want := "Ошибка ККТ 0xC9. Не передан(ы) значения (адрес-место-автомат) для ККТ зарегистрированной без этих значений (ФФД 1.2)"
+			failure := response.Data.Failure
+			if response.Data.FailedCommand != "0x24" || failure == nil || failure.DeviceCode == nil || *failure.DeviceCode != 0xC9 || failure.Message != want {
+				t.Fatalf("missing documented receipt rejection: %s", reply.Body)
+			}
+			if tc.cancelErr == nil {
+				if response.Error.Message != want {
+					t.Fatalf("top-level error lost the receipt description: %s", reply.Body)
+				}
+				return
+			}
+			cleanup := response.Data.Cleanup
+			if cleanup == nil || cleanup.Error == nil || cleanup.Error.DeviceCode == nil || *cleanup.Error.DeviceCode != 0x57 ||
+				cleanup.Error.Message != "Ошибка ККТ 0x57. Неверно указан режим налогообложения" {
+				t.Fatalf("missing documented cancellation rejection: %s", reply.Body)
+			}
+		})
+	}
+}
+
 func TestCreateReceiptCancellationCleanupUsesFreshContext(t *testing.T) {
 	itemEntered := make(chan struct{})
 	transport := &receiptTestTransport{state: 1}

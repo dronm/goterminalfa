@@ -32,17 +32,27 @@ type operationResult struct {
 	Data    any    `json:"data"`
 }
 
-// UncertainOperationError deliberately does not unwrap its cause. A definite
-// rejection of a later step does not prove that preceding fiscal steps had no
-// effect. Such a batch must retain its idempotency claim as an unknown outcome.
-type UncertainOperationError struct {
-	Step    int
-	Command string
-	Cause   error
+type operationStepError struct {
+	Step      int
+	Command   string
+	Cause     error
+	Uncertain bool
 }
 
-func (e *UncertainOperationError) Error() string {
-	return fmt.Sprintf("operation stopped at step %d (%s) after state-changing work may have executed: %v", e.Step, e.Command, e.Cause)
+func (e *operationStepError) Error() string {
+	if e.Uncertain {
+		return fmt.Sprintf("operation stopped at step %d (%s) after state-changing work may have executed: %v", e.Step, e.Command, e.Cause)
+	}
+	return fmt.Sprintf("operation step %d (%s): %v", e.Step, e.Command, e.Cause)
+}
+
+func (e *operationStepError) Unwrap() error {
+	// A rejection of a later step only describes that step. Keep it out of
+	// the error chain when earlier commands may have changed fiscal state.
+	if e.Uncertain {
+		return nil
+	}
+	return e.Cause
 }
 
 func operationCommand(commands []Command) Command {
@@ -573,7 +583,7 @@ func runOperation(ctx context.Context, device *Device, steps []operationStep) (a
 			code, _ := operationProtocolCode(step.resolved.Definition.ProtocolCode)
 			if observer.archiveActive && code != 0x36 {
 				if err := observer.completeArchive(); err != nil {
-					return &UncertainOperationError{Step: index + 1, Command: step.Command, Cause: err}
+					return &operationStepError{Step: index + 1, Command: step.Command, Cause: err, Uncertain: true}
 				}
 			}
 			observer.stepMutates = !step.resolved.Definition.ReadOnly
@@ -598,15 +608,15 @@ func runOperation(ctx context.Context, device *Device, steps []operationStep) (a
 				data, err = step.resolved.Execute(ctx, &scoped, step.Params)
 			}
 			if err != nil {
-				if priorMutation || observer.mutationSucceeded {
-					return &UncertainOperationError{Step: index + 1, Command: step.Command, Cause: err}
+				return &operationStepError{
+					Step: index + 1, Command: step.Command, Cause: err,
+					Uncertain: priorMutation || observer.mutationSucceeded,
 				}
-				return fmt.Errorf("operation step %d (%s): %w", index+1, step.Command, err)
 			}
 			results = append(results, operationResult{Command: step.Command, Data: data})
 		}
 		if err := observer.completeArchive(); err != nil {
-			return &UncertainOperationError{Step: len(steps), Command: steps[len(steps)-1].Command, Cause: err}
+			return &operationStepError{Step: len(steps), Command: steps[len(steps)-1].Command, Cause: err, Uncertain: true}
 		}
 		return nil
 	})

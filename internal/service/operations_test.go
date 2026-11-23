@@ -243,12 +243,32 @@ func TestOperationLaterRejectionRetainsUnknownOutcome(t *testing.T) {
 	commands = append(commands, operationCommand(commands))
 	app, journal := testService(t, []*Device{device}, commands)
 	req := operationRequest(`{"commands":[{"cmd":"beginReceipt"},{"cmd":"completeReceipt"}]}`)
-	requireError(t, app.Execute(context.Background(), req), 409, "outcome_unknown")
+	first := app.Execute(context.Background(), req)
+	requireError(t, first, 409, "outcome_unknown")
+	var response struct {
+		Data struct {
+			FailedStep  int    `json:"failedStep"`
+			FailedStage string `json:"failedStage"`
+			Failure     Error  `json:"failure"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(first.Body, &response); err != nil {
+		t.Fatal(err)
+	}
+	failure := response.Data.Failure
+	if response.Data.FailedStep != 2 || response.Data.FailedStage != "completeReceipt" || failure.Code != "device_error" ||
+		failure.DeviceCode == nil || *failure.DeviceCode != 0x28 || failure.Message != "Ошибка ККТ 0x28. Неверный формат или значение параметров команды" {
+		t.Fatalf("missing documented batch rejection: %s", first.Body)
+	}
 	record, err := journal.Get(context.Background(), req.DeviceID, req.RequestID)
-	if err != nil || record.State != store.StateUnknown {
+	if err != nil || record.State != store.StateUnknown || !bytes.Equal(record.Response, first.Body) {
 		t.Fatalf("partially applied operation not retained: %+v %v", record, err)
 	}
-	requireError(t, app.Execute(context.Background(), req), 409, "outcome_unknown")
+	for _, replay := range []Reply{app.Execute(context.Background(), req), app.Lookup(context.Background(), req.DeviceID, req.RequestID)} {
+		if replay.HTTPStatus != 409 || !replay.Replayed || !bytes.Equal(replay.Body, first.Body) {
+			t.Fatalf("replayed operation lost its diagnostic: %s", replay.Body)
+		}
+	}
 	if calls != 2 {
 		t.Fatalf("partially applied operation was retried: %d calls", calls)
 	}
@@ -265,6 +285,9 @@ func TestOperationFirstRejectionIsDefinite(t *testing.T) {
 	req := operationRequest(`{"commands":[{"cmd":"beginReceipt"},{"cmd":"completeReceipt"}]}`)
 	first := app.Execute(context.Background(), req)
 	requireError(t, first, 502, "device_error")
+	if got := responseBody(t, first).Error.Message; got != "Шаг 1 (beginReceipt). Ошибка ККТ 0x28. Неверный формат или значение параметров команды" {
+		t.Fatalf("unexpected first-step rejection: %q", got)
+	}
 	second := app.Execute(context.Background(), req)
 	if !second.Replayed || !bytes.Equal(first.Body, second.Body) || len(transport.calls) != 1 {
 		t.Fatalf("definite rejection was retried: %s", second.Body)

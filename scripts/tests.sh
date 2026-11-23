@@ -1,4 +1,4 @@
-curl -sS http://127.0.0.1:8090/api/v1/commands \
+curl -sS http://127.0.0.1:8190/api/v1/commands \
 	-H 'Content-Type: application/json' \
 	-d '{"deviceId":"cashdesk-1","cmd":"ID","params":{}}'
 
@@ -8,7 +8,7 @@ curl -sS http://127.0.0.1:8090/healthz \
 curl -sS http://127.0.0.1:8090/api/v1/devices \
 	-H 'Content-Type: application/json'
 
-curl -sS http://127.0.0.1:8090/api/v1/commands \
+curl -sS http://127.0.0.1:8190/api/v1/commands \
 	-H 'Content-Type: application/json'
 
 curl -sS http://127.0.0.1:8090/api/v1/commands \
@@ -19,7 +19,7 @@ curl -sS http://127.0.0.1:8090/api/v1/commands \
 	-H 'Content-Type: application/json' \
 	-d '{"deviceId":"cashdesk-1","cmd":"getModel","params":{}}'
 
-curl -sS http://127.0.0.1:8090/api/v1/commands \
+curl -sS http://127.0.0.1:8190/api/v1/commands \
 	-H 'Content-Type: application/json' \
 	-d '{"deviceId":"cashdesk-1","cmd":"getFiscalStorageSerialNumber","params":{}}'
 
@@ -27,3 +27,10 @@ curl -sS http://127.0.0.1:8090/api/v1/commands \
 	-H 'Content-Type: application/json' \
 	-d '{"deviceId":"cashdesk-1","cmd":"syncDateTime","params":{}}'
 
+curl -sS http://127.0.0.1:8190/api/v1/commands \
+	-H 'Content-Type: application/json' \
+	-d '{"deviceId":"cashdesk-1","cmd":"getStatus","params":{}}'
+
+curl -sS http://127.0.0.1:8190/api/v1/commands \
+	-H 'Content-Type: application/json' \
+	-d '{"deviceId":"cashdesk-1","cmd":"getRegistrationParameters","params":{}}'

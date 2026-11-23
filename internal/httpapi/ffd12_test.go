@@ -15,6 +15,7 @@ import (
 
 	terminalfa "github.com/dronm/goterminalfa"
 	"github.com/dronm/goterminalfa/internal/config"
+	"github.com/dronm/goterminalfa/internal/protocol"
 	"github.com/dronm/goterminalfa/internal/service"
 	"github.com/dronm/goterminalfa/internal/store"
 	"github.com/sirupsen/logrus"
@@ -87,6 +88,32 @@ func ffd12OperationResults(t *testing.T, w *httptest.ResponseRecorder) []struct 
 		t.Fatalf("operation failed: HTTP %d %s", w.Code, w.Body)
 	}
 	return response.Data.Results
+}
+
+func TestHTTPDeviceErrorDescriptionsUseConfiguredProfile(t *testing.T) {
+	for _, tc := range []struct {
+		device  string
+		code    byte
+		message string
+	}{
+		{"base-kkt", 0x57, "Ошибка ККТ 0x57. Не указан режим налогообложения"},
+		{"ffd-kkt", 0x57, "Ошибка ККТ 0x57. Неверно указан режим налогообложения"},
+		{"base-kkt", 0xC9, "Неизвестный код ошибки ККТ 0xC9"},
+		{"ffd-kkt", 0xC9, "Ошибка ККТ 0xC9. Не передан(ы) значения (адрес-место-автомат) для ККТ зарегистрированной без этих значений (ФФД 1.2)"},
+		{"ffd-kkt", 0xFF, "Неизвестный код ошибки ККТ 0xFF"},
+	} {
+		t.Run(fmt.Sprintf("%s/0x%02X", tc.device, tc.code), func(t *testing.T) {
+			reject := func(context.Context, byte, []byte) ([]byte, error) {
+				return nil, &protocol.DeviceError{Code: tc.code}
+			}
+			api := mixedFFD12API(t, reject, reject)
+			w := ffd12Post(t, api, tc.device, "getSerialNumber", "", `{}`)
+			response := requireAPIError(t, w, http.StatusBadGateway, "device_error")
+			if response.Status != "failed" || response.Error.DeviceCode == nil || *response.Error.DeviceCode != tc.code || response.Error.Message != tc.message {
+				t.Fatalf("unexpected device rejection: %s", w.Body)
+			}
+		})
+	}
 }
 
 func TestFFD12HTTPSelectsCataloguePerDevice(t *testing.T) {
