@@ -33,6 +33,7 @@ The following files are **templates for deliberate state-changing operations**, 
 | `set-clock.json` | Sets the device-local calendar time; replace the illustrative timestamp |
 | `sync-clock.json` | Sets the KKT clock from the Go process's current local time, with seconds dropped; no timestamp parameter is accepted |
 | `open-shift.json` | Opens a complete shift with printing suppressed; assumes automatic operation and fiscal mode |
+| `close-shift-if-open.json` | Checks shift state and closes an open shift with the supplied cashier, on either protocol profile |
 | `create-receipt.json` | Creates a 100-ruble cash receipt, no VAT, general taxation; adjust all registration-dependent values and ensure the shift is open |
 | `read-document-tlv.json` | Selects document 1 and drains its archive TLV cursor under one protected operation |
 | `set-network-settings.json` | Selects DHCP and supplies all required IPv4 fields as `0.0.0.0` placeholders |

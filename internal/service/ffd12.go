@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"sort"
+	"time"
 )
 
 // BuiltinCommandsForProfile selects explicit wire definitions. The base
@@ -14,17 +15,10 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 	if profile != "ffd1.2" {
 		return nil, fmt.Errorf("unsupported protocol profile %q", profile)
 	}
-	base := BuiltinCommands()
+	base := baseWireCommands()
 	byCode := make(map[string]Command)
-	var applications []Command
 	var contextualCommands []Command
 	for _, cmd := range base {
-		if cmd.Definition.ProtocolCode == "" {
-			if cmd.Definition.Name != "executeOperation" {
-				applications = append(applications, cmd)
-			}
-			continue
-		}
 		byCode[cmd.Definition.ProtocolCode] = cmd
 	}
 	overrides := append(ffd12ShiftCommands(base), ffd12ReceiptCommands()...)
@@ -70,7 +64,7 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 	legacyClosure.Definition.DescriptionRU = "Для завершения отчета о закрытии ФН в ФФД 1.2 используется команда 0x28 после 0x14 в составе одной операции. Устаревшая команда 0x15 не поддерживается."
 	legacyClosure.Definition.Source = ffd12ExtraSource(13)
 	byCode["0x15"] = legacyClosure
-	commands := make([]Command, 0, len(byCode)+len(contextualCommands)+len(applications)+1)
+	commands := make([]Command, 0, len(byCode)+len(contextualCommands))
 	for _, cmd := range byCode {
 		commands = append(commands, cmd)
 	}
@@ -85,10 +79,7 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
 		}
 		return commands[i].Definition.ProtocolCode < commands[j].Definition.ProtocolCode
 	})
-	for _, cmd := range applications {
-		cmd.Definition.ProtocolProfile = profile
-		commands = append(commands, cmd)
-	}
+	commands = appendSharedApplications(commands, time.Now)
 	commands = append(commands, createReceiptCommand(commands))
 	commands = append(commands, createCorrectionReceiptCommand(commands))
 	commands = append(commands, registerKktCommand())

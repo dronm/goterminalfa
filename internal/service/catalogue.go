@@ -208,6 +208,11 @@ func BuiltinCommands() []Command {
 }
 
 func builtinCommands(now func() time.Time) []Command {
+	commands := appendSharedApplications(baseWireCommands(), now)
+	return append(commands, operationCommand(commands))
+}
+
+func baseWireCommands() []Command {
 	var commands []Command
 	commands = append(commands, informationCommands()...)
 	commands = append(commands, registrationCommands()...)
@@ -225,12 +230,21 @@ func builtinCommands(now func() time.Time) []Command {
 	for i := range commands {
 		commands[i].Definition.OperationRequired = commands[i].Definition.Implemented && isWorkflowCommand(commands[i].Definition.ProtocolCode)
 	}
-	for _, command := range commands {
-		if command.Definition.Name == "setDateTime" {
-			commands = append(commands, syncDateTimeCommand(command, now))
-			break
+	return commands
+}
+
+// Bind application workflows after the profile has selected its wire codecs.
+func appendSharedApplications(commands []Command, now func() time.Time) []Command {
+	byCode := wireCommandsByCode(commands)
+	return append(commands, syncDateTimeCommand(byCode[0x72], now), closeShiftIfOpenCommand(byCode))
+}
+
+func wireCommandsByCode(commands []Command) map[byte]Command {
+	byCode := make(map[byte]Command, len(commands))
+	for _, cmd := range commands {
+		if code, ok := operationProtocolCode(cmd.Definition.ProtocolCode); ok {
+			byCode[code] = cmd
 		}
 	}
-	commands = append(commands, operationCommand(commands))
-	return commands
+	return byCode
 }

@@ -6418,6 +6418,120 @@
 			}
 		},
 		{
+			"name": "closeShiftIfOpen",
+			"protocolProfile": "ffd1.2",
+			"aliases": [],
+			"protocolCode": "",
+			"category": "shift",
+			"titleRu": "Закрыть смену, если она открыта",
+			"description": "Read shift state (0x20). If open, start closure (0x29), send cashier data (0x2F), and finalize the report (0x2A) under the same device lock.",
+			"descriptionRu": "Проверить состояние смены (0x20). Если смена открыта, начать закрытие (0x29), передать данные кассира (0x2F) и сформировать отчет (0x2A) за одну операцию.",
+			"readOnly": false,
+			"idempotencyRequired": true,
+			"implemented": true,
+			"requestLayout": "application",
+			"responseLayout": "application",
+			"input": [
+				{
+					"name": "cashierName",
+					"titleRu": "ФИО Кассира",
+					"description": "Cashier's full name, at most 64 CP866 bytes.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"minLength": 1,
+					"maxLength": 64,
+					"required": true,
+					"tag": 1021
+				},
+				{
+					"name": "cashierInn",
+					"titleRu": "ИНН Кассира",
+					"description": "Optional cashier INN; if present, exactly twelve decimal digits.",
+					"jsonType": "string",
+					"wireType": "ASCII",
+					"encoding": "CP866",
+					"fixedLength": 12,
+					"required": false,
+					"tag": 1203
+				},
+				{
+					"name": "suppressPrint",
+					"titleRu": "Формировать отчет без вывода на печать",
+					"description": "Optional byte: 0 print the report; 1 suppress printing. Omission means printing and remains an omitted wire byte.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"enum": {
+						"0": "Print report",
+						"1": "Do not print report"
+					},
+					"notes": "The protocol's default on omission is printing; no byte is inserted automatically."
+				}
+			],
+			"output": [
+				{
+					"name": "alreadyClosed",
+					"titleRu": "Смена уже закрыта",
+					"description": "True when the status query found a closed shift.",
+					"jsonType": "boolean",
+					"wireType": "",
+					"required": true
+				},
+				{
+					"name": "shiftNumber",
+					"titleRu": "Номер смены",
+					"description": "Number of the opened or closed shift.",
+					"jsonType": "integer",
+					"wireType": "UINT16",
+					"required": true
+				},
+				{
+					"name": "documentNumber",
+					"titleRu": "Номер ФД",
+					"description": "Fiscal document number.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": false
+				},
+				{
+					"name": "fiscalSign",
+					"titleRu": "Фискальный признак",
+					"description": "Fiscal document sign.",
+					"jsonType": "integer",
+					"wireType": "UINT32",
+					"required": false
+				},
+				{
+					"name": "warningFlags",
+					"titleRu": "Флаги предупреждений",
+					"description": "Warning bitmask from table 1 of the FFD 1.2 supplement.",
+					"jsonType": "integer",
+					"wireType": "BYTE",
+					"required": false,
+					"bits": {
+						"0": "РЕСУРС ФН МЕНЕЕ 3 ДНЕЙ",
+						"1": "РЕСУРС ФН МЕНЕЕ 30 ДНЕЙ",
+						"2": "ПАМЯТЬ ФН ЗАПОЛНЕНА",
+						"3": "ОФД НЕ ОТВЕЧАЕТ",
+						"4": "ОШИБКА ФЛК",
+						"5": "ТРЕБ. НАСТР. ККТ",
+						"6": "ОФД АННУЛИРОВАН",
+						"7": "КРИТИЧЕСКАЯ ОШИБКА ФН"
+					}
+				}
+			],
+			"notes": [
+				"Submit directly with one requestId. A repeat with the same parameters retrieves the journaled outcome.",
+				"Both success branches return alreadyClosed and shiftNumber. A newly closed shift also returns the fiscal report fields from the configured profile."
+			],
+			"source": {
+				"document": "goterminalfa HTTP API",
+				"version": "0.7.7",
+				"page": 0
+			}
+		},
+		{
 			"name": "createReceipt",
 			"protocolProfile": "ffd1.2",
 			"aliases": [],

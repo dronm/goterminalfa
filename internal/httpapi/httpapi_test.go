@@ -242,7 +242,7 @@ func TestRoutesMethodsAndDiscovery(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &catalogue); err != nil {
 		t.Fatal(err)
 	}
-	if w.Code != 200 || len(catalogue.Commands) != 74 || catalogue.Commands[0].Name != "getStatus" || catalogue.Commands[0].ProtocolCode != "0x01" || catalogue.Commands[0].Source.Page != 10 || !catalogue.Commands[0].ReadOnly || catalogue.Commands[0].IdempotencyRequired {
+	if w.Code != 200 || len(catalogue.Commands) != 75 || catalogue.Commands[0].Name != "getStatus" || catalogue.Commands[0].ProtocolCode != "0x01" || catalogue.Commands[0].Source.Page != 10 || !catalogue.Commands[0].ReadOnly || catalogue.Commands[0].IdempotencyRequired {
 		t.Fatalf("command catalogue: HTTP %d, %d definitions", w.Code, len(catalogue.Commands))
 	}
 	w = request(t, a, http.MethodGet, "/api/v1/devices", "", "", "")

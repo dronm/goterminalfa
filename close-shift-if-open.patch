@@ -1,0 +1,1074 @@
+diff --git a/README.md b/README.md
+index 4a4e7ad..5f8e0c5 100644
+--- a/README.md
++++ b/README.md
+@@ -2,7 +2,7 @@
+ 
+ Go HTTP/JSON driver service for **ККТ Терминал-ФА**. Applications address configured devices by logical ID; the service exchanges the binary KKT protocol over USB serial or raw TCP.
+ 
+-The default **`base` protocol profile** covers **all 72 entries listed in the supplied base protocol: 68 implemented and four explicitly unavailable** because their payload formats are not defined. Two application commands bring that catalogue to **74 entries**: **`executeOperation`** runs complete sequences under one device lock and request ID, and **`syncDateTime`** sets the KKT clock from the Go server's local wall clock. An explicit per-device **`ffd1.2`** profile selects the implemented supplement formats and adds **`createReceipt`** and **`createCorrectionReceipt`**, which conditionally open a shift before creating an unmarked normal or correction receipt and manage cleanup of a document they confirmed opening. The FFD catalogue has **92 entries**: **77 implemented public wire definitions** covering **76 distinct command bytes**, **10 explicitly unavailable entries**, and five application commands. FFD-only **`registerKkt`** executes registration/re-registration as one `0xE1` → `0xE2` → `0xE3` operation and validates the registration number against the actual KKT factory serial before starting it. Two named report finalizers share `0x28`. The catalogue also includes **`applyActivationCode`** (`0xDD`) for submitting a vendor-supplied activation code; full marked-goods support remains outside scope.
++The default **`base` protocol profile** covers **all 72 entries listed in the supplied base protocol: 68 implemented and four explicitly unavailable** because their payload formats are not defined. Three application commands bring that catalogue to **75 entries**. **`executeOperation`** runs complete sequences under one device lock and request ID, **`syncDateTime`** sets the KKT clock from the server's local time, and **`closeShiftIfOpen`** closes an open shift. An explicit per-device **`ffd1.2`** profile selects the implemented supplement formats and adds **`createReceipt`** and **`createCorrectionReceipt`**, which conditionally open a shift before creating an unmarked normal or correction receipt and manage cleanup of a document they confirmed opening. The FFD catalogue has **93 entries**: **77 implemented public wire definitions** covering **76 distinct command bytes**, **10 explicitly unavailable entries**, and six application commands. FFD-only **`registerKkt`** executes registration/re-registration as one `0xE1` → `0xE2` → `0xE3` operation and validates the registration number against the actual KKT factory serial before starting it. Two named report finalizers share `0x28`. The catalogue also includes **`applyActivationCode`** (`0xDD`) for submitting a vendor-supplied activation code; full marked-goods support remains outside scope.
+ 
+ - Multiple independently configured devices, with a bounded waiting queue and exclusive execution per device.
+ - Serial transport with 115200 baud and 8N1 by default; connections open for an operation and close afterward.
+@@ -196,6 +196,8 @@ The sampled time comes from that process, not from the HTTP caller or browser. R
+ 
+ Each state-changing request needs a stable `requestId`. Send a complete multi-command workflow with `cmd: "executeOperation"`; commands such as `beginReceipt`, `addReceiptItem`, and `finalizeReceipt` cannot be sent as independent HTTP calls. The whole sequence is validated before communication and runs without another request interleaving on that device.
+ 
++To close an open shift from Pronogti, submit **`closeShiftIfOpen`** with the cashier and one request ID. Both protocol profiles return `alreadyClosed` and `shiftNumber`. An already closed shift completes after the status check. See the [API contract](docs/API.md#close-the-shift-if-it-is-open) and [example request](examples/close-shift-if-open.json).
++
+ For an FFD 1.2 unmarked receipt with a conditional shift check, use **`createReceipt`** and [examples/ffd12-create-receipt-auto-shift.json](examples/ffd12-create-receipt-auto-shift.json). It reads shift state, opens a shift with cashier data only if closed, then sends the items, any supplied receipt/payment data, and finalization. It leaves the shift open. You supply the amounts, payment fields, and VAT choices; none are inferred. Repeating its request ID replays the saved result and never prints a second receipt.
+ 
+ Version 0.7.5 adds **`createCorrectionReceipt`** with the same conditional shift opening and cleanup policy. It requires `additionalData.correctedCalculationDate` as direct UnixTime tag `1178`, then uses correction opening/finalization `0x25`/`0x26`. Its payment object remains optional and explicit. [The correction example](examples/ffd12-create-correction-receipt-auto-shift.json) provides a complete request; [the API contract](docs/API.md#create-a-correction-receipt-with-conditional-shift-opening) explains its fields and results. The existing static correction example remains available.
+diff --git a/cmd/goterminalfa/main.go b/cmd/goterminalfa/main.go
+index 6714cc4..9c3f6b3 100644
+--- a/cmd/goterminalfa/main.go
++++ b/cmd/goterminalfa/main.go
+@@ -21,7 +21,7 @@ import (
+ 	"github.com/sirupsen/logrus"
+ )
+ 
+-const version = "0.7.6"
++const version = "0.7.7"
+ 
+ func main() {
+ 	if err := run(); err != nil {
+diff --git a/docs/API.md b/docs/API.md
+index 42d8d4b..360b9aa 100644
+--- a/docs/API.md
++++ b/docs/API.md
+@@ -136,6 +136,37 @@ Standard DATETIME5 validation and KKT clock-setting restrictions still apply. Th
+ 
+ This is a journaled mutation on either transport. A matching completed request ID replays its original timestamp without sampling or writing the clock again. Use a new request ID for each new intended synchronization, and reconcile unknown outcomes before further action. No recurring or startup synchronization is scheduled.
+ 
++## Close the shift if it is open
++
++`closeShiftIfOpen` is available on both `base` and `ffd1.2` devices. Submit it directly to `POST /api/v1/commands` with one `requestId` per intended closure. Pronogti sends the cashier and printing settings from its fiscal profile.
++
++```json
++{
++	"deviceId": "cashdesk-1",
++	"cmd": "closeShiftIfOpen",
++	"requestId": "shift-close-001",
++	"params": {
++		"cashierName": "Cashier",
++		"suppressPrint": 0
++	}
++}
++```
++
++| Parameter | Accepted value |
++| --- | --- |
++| `cashierName` | Required string of 1–64 CP866 bytes, validated before checking shift state |
++| `cashierInn` | Optional string of exactly 12 decimal digits |
++| `suppressPrint` | Optional integer. Omission or `0` prints the closing report. `1` suppresses printing. |
++
++The driver holds the device lock from the shift query through finalization. If an expected factory serial is configured, the driver verifies it first with `0x02`.
++
++| State from `0x20` | Subsequent commands | Successful `data` |
++| --- | --- | --- |
++| Closed (`0`) | None | `{"alreadyClosed":true,"shiftNumber":7}`. The number comes from the status query and can be zero. |
++| Open (`1`) | `0x29` start close → `0x2F` send cashier → `0x2A` finalize | `{"alreadyClosed":false,"shiftNumber":7,"documentNumber":85,"fiscalSign":123456}`. The report supplies these numbers. FFD 1.2 also returns `warningFlags`. |
++
++Both branches return HTTP 200 and `status: "completed"`. Retrying the same request ID and parameters retrieves the recorded result, even if another shift has since opened. A failed status query or unsupported shift state stops the operation before any closing command. If the closing report may have started and its outcome is uncertain, the driver returns HTTP 409 with `outcome_unknown`. Use the original ID to retrieve the outcome and reconcile it with the KKT before initiating another closure.
++
+ ## Create a receipt with conditional shift opening
+ 
+ `createReceipt` is available only for `ffd1.2` devices. It is an application workflow, not a KKT command byte, and cannot be nested in `executeOperation`. Unlike a static command sequence, it reads shift state and branches before creating a normal unmarked receipt. A request ID is required.
+@@ -475,7 +506,7 @@ Errors contain a machine `error.code`, a readable `error.message`, and, for a KK
+ 
+ For `device_error`, the message includes the hexadecimal code and its Russian description from the configured protocol profile. An undocumented code gets a Russian fallback with the original hexadecimal value. The same descriptions appear in receipt diagnostics at `data.failure` and `data.cleanup.error`.
+ 
+-When a later step in `executeOperation` or `registerKkt` is rejected after earlier changes may have taken effect, the response is `409 outcome_unknown`. Its data contains the one-based `failedStep`, canonical `failedStage`, and the device error in `failure`. The driver stores these diagnostics for matching replays and request lookup.
++When a later step in `executeOperation`, `registerKkt`, or `closeShiftIfOpen` is rejected after earlier changes may have taken effect, the response is `409 outcome_unknown`. Its data contains the one-based `failedStep`, canonical `failedStage`, and the device error in `failure`. For `closeShiftIfOpen`, the closing steps are numbered from `0x29`. The driver stores these diagnostics for matching replays and request lookup.
+ 
+ | HTTP status | Error codes |
+ | --- | --- |
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index b51517e..18afd07 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -77,7 +77,7 @@ The journal is not a durable asynchronous work queue. Requests execute synchrono
+ 
+ ## Catalogue scope and compatibility
+ 
+-The default base catalogue lists all 72 commands in the supplied base protocol: 68 implemented and four unavailable. The application commands `executeOperation` and `syncDateTime` bring base discovery to 74 entries. The explicit `ffd1.2` catalogue contains 92 entries: 77 implemented public wire definitions covering 76 distinct command bytes, 10 unavailable entries, and five application commands including `registerKkt`, `createReceipt`, and `createCorrectionReceipt`. It overrides audited overlapping definitions, adds FN closure, unmarked-item, supplementary-data, activation-code, host-setting, and diagnostic commands, and blocks superseded base fiscal payloads. `applyActivationCode` (`0xDD`) validates and decodes a vendor-supplied 16-byte code; lowercase hexadecimal normalization makes letter-case variants share the same request identity. It uses the existing standalone-write journal and device gate. [FFD12.md](FFD12.md) records the profile's source audit and supported subset; full marking support remains outside scope.
++The default base catalogue lists all 72 commands in the supplied base protocol: 68 implemented and four unavailable. The application commands `executeOperation`, `syncDateTime`, and `closeShiftIfOpen` bring base discovery to 75 entries. The explicit `ffd1.2` catalogue contains 93 entries: 77 implemented public wire definitions covering 76 distinct command bytes, 10 unavailable entries, and six application commands including `registerKkt`, `createReceipt`, and `createCorrectionReceipt`. It overrides audited overlapping definitions, adds FN closure, unmarked-item, supplementary-data, activation-code, host-setting, and diagnostic commands, and blocks superseded base fiscal payloads. `applyActivationCode` (`0xDD`) validates and decodes a vendor-supplied 16-byte code; lowercase hexadecimal normalization makes letter-case variants share the same request identity. It uses the existing standalone-write journal and device gate. [FFD12.md](FFD12.md) records the profile's source audit and supported subset; full marking support remains outside scope.
+ 
+ `registerKkt` keeps FFD registration commands E1/E2/E3 private to one application workflow. All encoded fields are validated before traffic; under the device gate, a factory-serial read supplies the actual identity for RN CRC16 validation before E1. Configured expected serials are first verified by the existing session guard. A runtime checksum mismatch is a definite validation failure, persisted and replayable without another read. Accepted registration steps retain the static executor's fail-fast mutation tracking: a later failure remains unknown, with no cancellation or rollback. The application returns the final fiscal document number and sign directly and cannot be nested inside `executeOperation`.
+ 
+diff --git a/docs/COMMANDS.md b/docs/COMMANDS.md
+index 9f7d21e..693a1f1 100644
+--- a/docs/COMMANDS.md
++++ b/docs/COMMANDS.md
+@@ -1,12 +1,12 @@
+ # Command index
+ 
+-The default **base** catalogue exposes **74 entries**: **68 implemented base-protocol commands**, **four unavailable base-protocol entries**, and the two application commands **`executeOperation`** and **`syncDateTime`**. All **72 command entries listed in the supplied base protocol** are represented. The table below describes that default profile.
++The default **base** catalogue exposes **75 entries** across **68 implemented base-protocol commands**, **four unavailable base-protocol entries**, and three application commands (**`executeOperation`**, **`syncDateTime`**, and **`closeShiftIfOpen`**). All **72 command entries listed in the supplied base protocol** are represented. The table below describes that default profile.
+ 
+ Read-only commands perform fresh device queries and are not journaled. State-changing commands require a `requestId`. **Operation** means the command must appear inside a complete `executeOperation`; **Direct** allows a standalone request. Unavailable entries return `501 command_unavailable` without device communication.
+ 
+ Use `GET /api/v1/commands` for the current full definitions. [commands.json](commands.json) is an exported snapshot with all input/output schemas, TLV tags, exact types, enums, flags, preconditions, notes, and original Russian descriptions. [API.md](API.md) explains request formats and execution semantics.
+ 
+-For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 92 entries contain 77 implemented public wire definitions (76 distinct command bytes), 10 explicitly unavailable entries, and five application commands, including FFD-only `registerKkt`, `createReceipt`, and `createCorrectionReceipt`. Registration bytes E1/E2/E3 are internal steps of `registerKkt`, preserving checksum validation before any registration mutation. The two report finalizers share byte `0x28` and have separate context-selected decoders. [FFD12.md](FFD12.md) contains the supplement audit matrix, FN closure, host-setting and diagnostic additions, receipt/report definitions, inherited commands, and remaining scope limits. `applyActivationCode` (`0xDD`) submits the vendor-supplied, device-specific 16-byte code as exactly 32 hexadecimal characters in `activationCodeHex`; it is a standalone journaled write requiring a request ID. Do not use the base table as a substitute for that device's actual schemas.
++For a configured `ffd1.2` device, use `GET /api/v1/commands?deviceId=...` or the [commands-ffd12.json](commands-ffd12.json) export. Its 93 entries contain 77 implemented public wire definitions (76 distinct command bytes), 10 explicitly unavailable entries, and six application commands, including FFD-only `registerKkt`, `createReceipt`, and `createCorrectionReceipt`. Registration bytes E1/E2/E3 are internal steps of `registerKkt`, preserving checksum validation before any registration mutation. The two report finalizers share byte `0x28` and have separate context-selected decoders. [FFD12.md](FFD12.md) contains the supplement audit matrix, FN closure, host-setting and diagnostic additions, receipt/report definitions, inherited commands, and remaining scope limits. `applyActivationCode` (`0xDD`) submits the vendor-supplied, device-specific 16-byte code as exactly 32 hexadecimal characters in `activationCodeHex`; it is a standalone journaled write requiring a request ID. Do not use the base table as a substitute for that device's actual schemas.
+ 
+ | Code | Canonical command | Category | Policy | Invocation | Protocol 01.05 page |
+ | --- | --- | --- | --- | --- | --- |
+@@ -120,11 +120,12 @@ OISM setters require `host`, `tcpPort`, and `timeoutSeconds`; key-update setters
+ | --- | --- | --- |
+ | `executeOperation` | Ordered `commands` array | Executes a complete validated sequence under one device gate and one durable request ID; returns ordered results |
+ | `syncDateTime` | Empty object `{}` | Samples the Go server's local clock after queue waiting and any configured identity verification, drops seconds, and writes `0x72`/TLV `30000`; returns the sent `dateTime` |
++| `closeShiftIfOpen` | Required `cashierName`, optional `cashierInn` and numeric `suppressPrint` | Checks `0x20` and closes an open shift with `0x29` → `0x2F` → `0x2A`. Both branches return `alreadyClosed` and `shiftNumber`. [API contract](API.md#close-the-shift-if-it-is-open) |
+ | `registerKkt` (FFD only) | Flat registration fields, report type, user/OFD INN, registration number, taxation mask, and conditional reason mask | Validates the request and actual KKT serial, then executes internal `0xE1`/`0xE2`/`0xE3` steps under one request ID; returns `documentNumber` and `fiscalSign` |
+ | `createReceipt` (FFD only) | Cashier, items, optional payment/additional data, calculation sign, and total | Checks shift state, conditionally opens a shift, creates the receipt, and reports any confirmed-document cleanup on failure |
+ | `createCorrectionReceipt` (FFD only) | Same receipt fields, with required `additionalData.correctedCalculationDate` | Checks/opens the shift, creates a correction using `0x25`/`0x96`/`0x98`/optional `0x2D`/`0x26`, and uses confirmed-document cleanup |
+ 
+-All application commands require a request ID and have no command byte of their own. `registerKkt`, `createReceipt`, and `createCorrectionReceipt` are registered only in the FFD profile and cannot be nested in `executeOperation`; the base catalogue remains unchanged. Both receipt workflows require a cashier name and 1–200 unmarked items, leave an opened shift open, and infer no payment data. Their recovery can cancel only a document confirmed opened by that request; a lost `0x24`/`0x26` result stays unknown even if cancellation succeeds. [API.md](API.md#create-a-correction-receipt-with-conditional-shift-opening) documents the correction workflow added in version 0.7.5. A batch containing only reads still has operation-level persistence. Repeating a completed `syncDateTime` request ID replays its saved timestamp rather than synchronizing again; use a new ID for each intended synchronization. Its timezone is the Go server process's local timezone, which can be set with `TZ`; no automatic schedule is created.
++All application commands require a request ID and have no command byte of their own. Submit `closeShiftIfOpen` directly on either profile. The FFD-specific `registerKkt`, `createReceipt`, and `createCorrectionReceipt` also run as standalone requests. Both receipt workflows require a cashier name and 1–200 unmarked items, leave an opened shift open, and infer no payment data. Their recovery can cancel only a document confirmed opened by that request; a lost `0x24`/`0x26` result stays unknown even if cancellation succeeds. [API.md](API.md#create-a-correction-receipt-with-conditional-shift-opening) documents the correction workflow added in version 0.7.5. A batch containing only reads still has operation-level persistence. Repeating a completed `syncDateTime` request ID replays its saved timestamp rather than synchronizing again; use a new ID for each intended synchronization. Its timezone is the Go server process's local timezone, which can be set with `TZ`; no automatic schedule is created.
+ 
+ Every protocol command accepts its registered numeric alias, for example `0x03`, and lettered hexadecimal aliases such as `0x2B`/`0x2b`. `getSerialNumber` additionally accepts `ID`.
+ 
+diff --git a/docs/FFD12.md b/docs/FFD12.md
+index e3c0e41..d44692b 100644
+--- a/docs/FFD12.md
++++ b/docs/FFD12.md
+@@ -2,7 +2,7 @@
+ 
+ `goterminalfa` supports an explicit **`ffd1.2`** per-device profile for the implemented parts of **«Протокол информационного обмена ККТ Терминал-ФА — дополнение для работы с ФФД версии 1.2»**. Page references below refer to that supplied supplement unless marked as base.
+ 
+-The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **92 entries**: **77 implemented public wire definitions** covering **76 distinct command bytes**, **10 explicitly unavailable entries**, and five application commands. `registerKkt` executes E1/E2/E3 internally as one operation; those bytes have no separate public aliases. The two named finalizers at `0x28` have separate workflow-specific decoders. FFD-only `createReceipt` and `createCorrectionReceipt` provide normal and correction receipt workflows with conditional shift opening; neither adds a wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
++The supplement is not a complete replacement for the base protocol. It redefines some existing command bytes, adds new commands, and leaves common commands unspecified. The driver selects audited definitions explicitly rather than guessing from a response length or silently combining incompatible fiscal payloads. The selected catalogue contains **93 entries**: **77 implemented public wire definitions** covering **76 distinct command bytes**, **10 explicitly unavailable entries**, and six application commands. The [conditional shift closure](API.md#close-the-shift-if-it-is-open) uses this profile’s 11-byte report response. `registerKkt` executes E1/E2/E3 internally as one operation; those bytes have no separate public aliases. The two named finalizers at `0x28` have separate workflow-specific decoders. FFD-only `createReceipt` and `createCorrectionReceipt` provide normal and correction receipt workflows with conditional shift opening; neither adds a wire command. [commands-ffd12.json](commands-ffd12.json) exports those definitions.
+ 
+ ## Select a profile and inspect its catalogue
+ 
+diff --git a/docs/VALIDATION.md b/docs/VALIDATION.md
+index 67bbcf9..e640643 100644
+--- a/docs/VALIDATION.md
++++ b/docs/VALIDATION.md
+@@ -1,5 +1,11 @@
+ # Validation
+ 
++## Conditional shift closure (version 0.7.7)
++
++HTTP tests cover open and closed shifts on both profiles, cashier TLV encoding, omitted and explicit printing flags, required request IDs, input validation, and replay of successful and failed requests. A concurrency test starts an admin closure and a cron closure with different IDs. The first closes the shift and the second reads its closed state, with one closing report across the two requests.
++
++Pronogti's `HTTPDriver.CloseShift` was also exercised against the compiled driver and a simulated TCP KKT for each profile. It recognized both `closed` and `already_closed`. Dropping the final report reply produced `unknown`, and replaying the original ID after a driver restart added zero device commands. The simulated run verified the 10-byte base report and the 11-byte FFD 1.2 report. Physical KKT acceptance remains unverified.
++
+ ## Registration and re-registration (version 0.7.6)
+ 
+ Version 0.7.6 adds FFD-only `registerKkt`. It checks Russian INN check digits, a bare sender-email address, and the RN CRC16 against the actual KKT factory serial before beginning internal E1/E2/E3 registration. Initial registration omits the reason; re-registration sends a four-byte UINT32 LE reason mask. User-requested optional tags remain optional, and explicit zero flags remain distinguishable from omitted flags. The public FFD catalogue has 92 entries: 77 implemented wire definitions covering 76 distinct command bytes, 10 unavailable entries, and five application commands. E1/E2/E3 remain internal to the application workflow.
+diff --git a/docs/commands-ffd12.json b/docs/commands-ffd12.json
+index 1386059..f91c077 100644
+--- a/docs/commands-ffd12.json
++++ b/docs/commands-ffd12.json
+@@ -6417,6 +6417,120 @@
+ 				"page": 0
+ 			}
+ 		},
++		{
++			"name": "closeShiftIfOpen",
++			"protocolProfile": "ffd1.2",
++			"aliases": [],
++			"protocolCode": "",
++			"category": "shift",
++			"titleRu": "Закрыть смену, если она открыта",
++			"description": "Read shift state (0x20). If open, start closure (0x29), send cashier data (0x2F), and finalize the report (0x2A) under the same device lock.",
++			"descriptionRu": "Проверить состояние смены (0x20). Если смена открыта, начать закрытие (0x29), передать данные кассира (0x2F) и сформировать отчет (0x2A) за одну операцию.",
++			"readOnly": false,
++			"idempotencyRequired": true,
++			"implemented": true,
++			"requestLayout": "application",
++			"responseLayout": "application",
++			"input": [
++				{
++					"name": "cashierName",
++					"titleRu": "ФИО Кассира",
++					"description": "Cashier's full name, at most 64 CP866 bytes.",
++					"jsonType": "string",
++					"wireType": "ASCII",
++					"encoding": "CP866",
++					"minLength": 1,
++					"maxLength": 64,
++					"required": true,
++					"tag": 1021
++				},
++				{
++					"name": "cashierInn",
++					"titleRu": "ИНН Кассира",
++					"description": "Optional cashier INN; if present, exactly twelve decimal digits.",
++					"jsonType": "string",
++					"wireType": "ASCII",
++					"encoding": "CP866",
++					"fixedLength": 12,
++					"required": false,
++					"tag": 1203
++				},
++				{
++					"name": "suppressPrint",
++					"titleRu": "Формировать отчет без вывода на печать",
++					"description": "Optional byte: 0 print the report; 1 suppress printing. Omission means printing and remains an omitted wire byte.",
++					"jsonType": "integer",
++					"wireType": "BYTE",
++					"required": false,
++					"enum": {
++						"0": "Print report",
++						"1": "Do not print report"
++					},
++					"notes": "The protocol's default on omission is printing; no byte is inserted automatically."
++				}
++			],
++			"output": [
++				{
++					"name": "alreadyClosed",
++					"titleRu": "Смена уже закрыта",
++					"description": "True when the status query found a closed shift.",
++					"jsonType": "boolean",
++					"wireType": "",
++					"required": true
++				},
++				{
++					"name": "shiftNumber",
++					"titleRu": "Номер смены",
++					"description": "Number of the opened or closed shift.",
++					"jsonType": "integer",
++					"wireType": "UINT16",
++					"required": true
++				},
++				{
++					"name": "documentNumber",
++					"titleRu": "Номер ФД",
++					"description": "Fiscal document number.",
++					"jsonType": "integer",
++					"wireType": "UINT32",
++					"required": false
++				},
++				{
++					"name": "fiscalSign",
++					"titleRu": "Фискальный признак",
++					"description": "Fiscal document sign.",
++					"jsonType": "integer",
++					"wireType": "UINT32",
++					"required": false
++				},
++				{
++					"name": "warningFlags",
++					"titleRu": "Флаги предупреждений",
++					"description": "Warning bitmask from table 1 of the FFD 1.2 supplement.",
++					"jsonType": "integer",
++					"wireType": "BYTE",
++					"required": false,
++					"bits": {
++						"0": "РЕСУРС ФН МЕНЕЕ 3 ДНЕЙ",
++						"1": "РЕСУРС ФН МЕНЕЕ 30 ДНЕЙ",
++						"2": "ПАМЯТЬ ФН ЗАПОЛНЕНА",
++						"3": "ОФД НЕ ОТВЕЧАЕТ",
++						"4": "ОШИБКА ФЛК",
++						"5": "ТРЕБ. НАСТР. ККТ",
++						"6": "ОФД АННУЛИРОВАН",
++						"7": "КРИТИЧЕСКАЯ ОШИБКА ФН"
++					}
++				}
++			],
++			"notes": [
++				"Submit directly with one requestId. A repeat with the same parameters retrieves the journaled outcome.",
++				"Both success branches return alreadyClosed and shiftNumber. A newly closed shift also returns the fiscal report fields from the configured profile."
++			],
++			"source": {
++				"document": "goterminalfa HTTP API",
++				"version": "0.7.7",
++				"page": 0
++			}
++		},
+ 		{
+ 			"name": "createReceipt",
+ 			"protocolProfile": "ffd1.2",
+diff --git a/docs/commands.json b/docs/commands.json
+index 4b9ccc1..f4a1490 100644
+--- a/docs/commands.json
++++ b/docs/commands.json
+@@ -4761,6 +4761,101 @@
+ 				"page": 0
+ 			}
+ 		},
++		{
++			"name": "closeShiftIfOpen",
++			"aliases": [],
++			"protocolCode": "",
++			"category": "shift",
++			"titleRu": "Закрыть смену, если она открыта",
++			"description": "Read shift state (0x20). If open, start closure (0x29), send cashier data (0x2F), and finalize the report (0x2A) under the same device lock.",
++			"descriptionRu": "Проверить состояние смены (0x20). Если смена открыта, начать закрытие (0x29), передать данные кассира (0x2F) и сформировать отчет (0x2A) за одну операцию.",
++			"readOnly": false,
++			"idempotencyRequired": true,
++			"implemented": true,
++			"requestLayout": "application",
++			"responseLayout": "application",
++			"input": [
++				{
++					"name": "cashierName",
++					"titleRu": "ФИО Кассира",
++					"description": "Cashier's full name, at most 64 CP866 bytes.",
++					"jsonType": "string",
++					"wireType": "ASCII",
++					"encoding": "CP866",
++					"minLength": 1,
++					"maxLength": 64,
++					"required": true,
++					"tag": 1021
++				},
++				{
++					"name": "cashierInn",
++					"titleRu": "ИНН Кассира",
++					"description": "Optional cashier INN; if present, exactly twelve decimal digits.",
++					"jsonType": "string",
++					"wireType": "ASCII",
++					"encoding": "CP866",
++					"fixedLength": 12,
++					"required": false,
++					"tag": 1203
++				},
++				{
++					"name": "suppressPrint",
++					"titleRu": "Формировать отчет без вывода на печать",
++					"description": "Optional byte: 0 print the report; 1 suppress printing. Omission means printing and remains an omitted wire byte.",
++					"jsonType": "integer",
++					"wireType": "BYTE",
++					"required": false,
++					"enum": {
++						"0": "Print report",
++						"1": "Do not print report"
++					},
++					"notes": "The protocol's default on omission is printing; no byte is inserted automatically."
++				}
++			],
++			"output": [
++				{
++					"name": "alreadyClosed",
++					"titleRu": "Смена уже закрыта",
++					"description": "True when the status query found a closed shift.",
++					"jsonType": "boolean",
++					"wireType": "",
++					"required": true
++				},
++				{
++					"name": "shiftNumber",
++					"titleRu": "Номер смены",
++					"description": "Number of the opened or closed shift.",
++					"jsonType": "integer",
++					"wireType": "UINT16",
++					"required": true
++				},
++				{
++					"name": "documentNumber",
++					"titleRu": "Номер ФД",
++					"description": "Fiscal document number.",
++					"jsonType": "integer",
++					"wireType": "UINT32",
++					"required": false
++				},
++				{
++					"name": "fiscalSign",
++					"titleRu": "Фискальный признак",
++					"description": "Fiscal document sign.",
++					"jsonType": "integer",
++					"wireType": "UINT32",
++					"required": false
++				}
++			],
++			"notes": [
++				"Submit directly with one requestId. A repeat with the same parameters retrieves the journaled outcome.",
++				"Both success branches return alreadyClosed and shiftNumber. A newly closed shift also returns the fiscal report fields from the configured profile."
++			],
++			"source": {
++				"document": "goterminalfa HTTP API",
++				"version": "0.7.7",
++				"page": 0
++			}
++		},
+ 		{
+ 			"name": "executeOperation",
+ 			"aliases": [],
+diff --git a/examples/README.md b/examples/README.md
+index 41ca258..be5d310 100644
+--- a/examples/README.md
++++ b/examples/README.md
+@@ -33,6 +33,7 @@ The following files are **templates for deliberate state-changing operations**,
+ | `set-clock.json` | Sets the device-local calendar time; replace the illustrative timestamp |
+ | `sync-clock.json` | Sets the KKT clock from the Go process's current local time, with seconds dropped; no timestamp parameter is accepted |
+ | `open-shift.json` | Opens a complete shift with printing suppressed; assumes automatic operation and fiscal mode |
++| `close-shift-if-open.json` | Checks shift state and closes an open shift with the supplied cashier, on either protocol profile |
+ | `create-receipt.json` | Creates a 100-ruble cash receipt, no VAT, general taxation; adjust all registration-dependent values and ensure the shift is open |
+ | `read-document-tlv.json` | Selects document 1 and drains its archive TLV cursor under one protected operation |
+ | `set-network-settings.json` | Selects DHCP and supplies all required IPv4 fields as `0.0.0.0` placeholders |
+diff --git a/examples/close-shift-if-open.json b/examples/close-shift-if-open.json
+new file mode 100644
+index 0000000..14e5fb3
+--- /dev/null
++++ b/examples/close-shift-if-open.json
+@@ -0,0 +1,9 @@
++{
++	"deviceId": "cashdesk-1",
++	"cmd": "closeShiftIfOpen",
++	"requestId": "shift-close-001",
++	"params": {
++		"cashierName": "Cashier",
++		"suppressPrint": 0
++	}
++}
+diff --git a/internal/httpapi/close_shift_test.go b/internal/httpapi/close_shift_test.go
+new file mode 100644
+index 0000000..0a6eacc
+--- /dev/null
++++ b/internal/httpapi/close_shift_test.go
+@@ -0,0 +1,175 @@
++package httpapi
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"errors"
++	"net/http"
++	"reflect"
++	"strings"
++	"testing"
++
++	"github.com/dronm/goterminalfa/internal/protocol"
++)
++
++func TestCloseShiftIfOpenPronogtiContract(t *testing.T) {
++	const fullParams = `{"cashierName":"Иван","cashierInn":"012345678901","suppressPrint":1}`
++	const minimalParams = `{"cashierName":"Иван"}`
++	nameTLV := []byte{0xFD, 0x03, 4, 0, 0x88, 0xA2, 0xA0, 0xAD}
++	innTLV := append([]byte{0xB3, 0x04, 12, 0}, []byte("012345678901")...)
++	for _, tc := range []struct {
++		name, device, params string
++		open                 bool
++		printByte            []byte
++		withINN              bool
++	}{
++		{"base already closed", "base-kkt", minimalParams, false, nil, false},
++		{"FFD already closed", "ffd-kkt", fullParams, false, nil, true},
++		{"base print by default", "base-kkt", minimalParams, true, nil, false},
++		{"base print explicitly", "base-kkt", `{"cashierName":"Иван","suppressPrint":0}`, true, []byte{0}, false},
++		{"FFD suppress printing", "ffd-kkt", fullParams, true, []byte{1}, true},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			var calls []byte
++			exchange := func(_ context.Context, code byte, payload []byte) ([]byte, error) {
++				calls = append(calls, code)
++				switch code {
++				case 0x20:
++					if len(payload) != 0 {
++						t.Fatalf("shift query payload = % X", payload)
++					}
++					if tc.open {
++						return []byte{1, 1, 2, 5, 0}, nil
++					}
++					return []byte{0, 0, 0, 5, 0}, nil
++				case 0x29:
++					if !bytes.Equal(payload, tc.printByte) {
++						t.Fatalf("print flag = % X, want % X", payload, tc.printByte)
++					}
++				case 0x2F:
++					want := bytes.Clone(nameTLV)
++					if tc.withINN {
++						want = append(want, innTLV...)
++					}
++					if !bytes.Equal(payload, want) {
++						t.Fatalf("cashier TLVs = % X, want % X", payload, want)
++					}
++				case 0x2A:
++					if len(payload) != 0 {
++						t.Fatalf("finalization payload = % X", payload)
++					}
++					report := []byte{1, 2, 7, 0, 0, 0, 9, 0, 0, 0}
++					if tc.device == "ffd-kkt" {
++						report = append(report, 0x81)
++					}
++					return report, nil
++				default:
++					t.Fatalf("unexpected command 0x%02X", code)
++				}
++				return nil, nil
++			}
++			api := mixedFFD12API(t, exchange, exchange)
++			const id = "pronogti-close-test"
++			first := ffd12Post(t, api, tc.device, "closeShiftIfOpen", id, tc.params)
++			var got struct {
++				DeviceID  string         `json:"deviceId"`
++				Command   string         `json:"cmd"`
++				RequestID string         `json:"requestId"`
++				Status    string         `json:"status"`
++				Data      map[string]any `json:"data"`
++			}
++			if err := json.Unmarshal(first.Body.Bytes(), &got); err != nil {
++				t.Fatal(err)
++			}
++			wantCalls := []byte{0x20}
++			wantData := map[string]any{"alreadyClosed": true, "shiftNumber": float64(0)}
++			if tc.open {
++				wantCalls = append(wantCalls, 0x29, 0x2F, 0x2A)
++				wantData = map[string]any{"alreadyClosed": false, "shiftNumber": float64(513), "documentNumber": float64(7), "fiscalSign": float64(9)}
++				if tc.device == "ffd-kkt" {
++					wantData["warningFlags"] = float64(0x81)
++				}
++			}
++			if first.Code != http.StatusOK || got.DeviceID != tc.device || got.Command != "closeShiftIfOpen" || got.RequestID != id || got.Status != "completed" || !reflect.DeepEqual(got.Data, wantData) {
++				t.Fatalf("HTTP %d %s, want completed with data %v", first.Code, first.Body, wantData)
++			}
++			replay := ffd12Post(t, api, tc.device, "closeShiftIfOpen", id, tc.params)
++			if replay.Code != first.Code || replay.Header().Get("Idempotency-Replayed") != "true" || !bytes.Equal(replay.Body.Bytes(), first.Body.Bytes()) {
++				t.Fatalf("unexpected replay: HTTP %d %s", replay.Code, replay.Body)
++			}
++			requireAPIError(t, ffd12Post(t, api, tc.device, "closeShiftIfOpen", id, `{"cashierName":"Other"}`), 409, "idempotency_conflict")
++			if !bytes.Equal(calls, wantCalls) {
++				t.Fatalf("wire commands = % X, want % X", calls, wantCalls)
++			}
++		})
++	}
++}
++
++func TestCloseShiftIfOpenRejectsInvalidRequestsBeforeDeviceAccess(t *testing.T) {
++	api := mixedFFD12API(t, nil, nil)
++	const valid = `{"cashierName":"Cashier"}`
++	for _, params := range []string{
++		`{}`, `{"cashierName":""}`, `{"cashierName":"🙂"}`,
++		`{"cashierName":"` + strings.Repeat("A", 65) + `"}`,
++		`{"cashierName":"A","cashierInn":"123"}`, `{"cashierName":"A","cashierInn":null}`,
++		`{"cashierName":"A","suppressPrint":true}`, `{"cashierName":"A","suppressPrint":2}`,
++		`{"cashierName":"A","suppressPrint":null}`, `{"cashierName":"A","unknown":0}`,
++	} {
++		requireAPIError(t, ffd12Post(t, api, "ffd-kkt", "closeShiftIfOpen", "invalid", params), 400, "invalid_request")
++	}
++	for _, device := range []string{"base-kkt", "ffd-kkt"} {
++		requireAPIError(t, ffd12Post(t, api, device, "closeShiftIfOpen", "", valid), 400, "invalid_request")
++		nested := `[{"cmd":"closeShiftIfOpen","params":` + valid + `}]`
++		requireAPIError(t, ffd12Operation(t, api, device, "nested", nested), 400, "invalid_request")
++	}
++}
++
++func TestCloseShiftIfOpenStopsAndJournalsFailures(t *testing.T) {
++	rejected := &protocol.DeviceError{Code: 0x57}
++	lost := errors.New("connection lost")
++	for _, tc := range []struct {
++		name       string
++		at         byte
++		reply      []byte
++		err        error
++		httpStatus int
++		errorCode  string
++	}{
++		{"lost status response", 0x20, nil, lost, 502, "transport_error"},
++		{"truncated status", 0x20, []byte{1}, nil, 502, "protocol_error"},
++		{"unknown shift state", 0x20, []byte{2, 1, 0, 0, 0}, nil, 502, "protocol_error"},
++		{"start rejected", 0x29, nil, rejected, 502, "device_error"},
++		{"start acknowledgement lost", 0x29, nil, lost, 409, "outcome_unknown"},
++		{"cashier rejected after start", 0x2F, nil, rejected, 409, "outcome_unknown"},
++		{"finalization rejected after start", 0x2A, nil, rejected, 409, "outcome_unknown"},
++		{"finalization response lost", 0x2A, nil, lost, 409, "outcome_unknown"},
++		{"FFD report missing warning byte", 0x2A, make([]byte, 10), nil, 409, "outcome_unknown"},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			var calls []byte
++			api := mixedFFD12API(t, nil, func(_ context.Context, code byte, _ []byte) ([]byte, error) {
++				calls = append(calls, code)
++				if code == tc.at {
++					return tc.reply, tc.err
++				}
++				if code == 0x20 {
++					return []byte{1, 42, 0, 0, 0}, nil
++				}
++				return nil, nil
++			})
++			const params = `{"cashierName":"A"}`
++			first := ffd12Post(t, api, "ffd-kkt", "closeShiftIfOpen", "failure", params)
++			requireAPIError(t, first, tc.httpStatus, tc.errorCode)
++			replay := ffd12Post(t, api, "ffd-kkt", "closeShiftIfOpen", "failure", params)
++			want := []byte{0x20, 0x29, 0x2F, 0x2A}
++			want = want[:bytes.IndexByte(want, tc.at)+1]
++			if replay.Code != first.Code || !bytes.Equal(replay.Body.Bytes(), first.Body.Bytes()) || !bytes.Equal(calls, want) {
++				t.Fatalf("replay HTTP %d %s, commands % X, want % X", replay.Code, replay.Body, calls, want)
++			}
++			if tc.err == rejected && !strings.Contains(first.Body.String(), "Неверно указан режим налогообложения") {
++				t.Fatalf("missing FFD device rejection: %s", first.Body)
++			}
++		})
++	}
++}
+diff --git a/internal/httpapi/ffd12_test.go b/internal/httpapi/ffd12_test.go
+index 43328df..73521ed 100644
+--- a/internal/httpapi/ffd12_test.go
++++ b/internal/httpapi/ffd12_test.go
+@@ -122,9 +122,9 @@ func TestFFD12HTTPSelectsCataloguePerDevice(t *testing.T) {
+ 		path, profile, device string
+ 		count                 int
+ 	}{
+-		{"/api/v1/commands", "", "", 74},
+-		{"/api/v1/commands?deviceId=base-kkt", "base", "base-kkt", 74},
+-		{"/api/v1/commands?deviceId=ffd-kkt", "ffd1.2", "ffd-kkt", 92},
++		{"/api/v1/commands", "", "", 75},
++		{"/api/v1/commands?deviceId=base-kkt", "base", "base-kkt", 75},
++		{"/api/v1/commands?deviceId=ffd-kkt", "ffd1.2", "ffd-kkt", 93},
+ 	} {
+ 		t.Run(test.path, func(t *testing.T) {
+ 			w := request(t, api, http.MethodGet, test.path, "", "", "")
+diff --git a/internal/httpapi/httpapi_test.go b/internal/httpapi/httpapi_test.go
+index 558adb1..624f173 100644
+--- a/internal/httpapi/httpapi_test.go
++++ b/internal/httpapi/httpapi_test.go
+@@ -242,7 +242,7 @@ func TestRoutesMethodsAndDiscovery(t *testing.T) {
+ 	if err := json.Unmarshal(w.Body.Bytes(), &catalogue); err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if w.Code != 200 || len(catalogue.Commands) != 74 || catalogue.Commands[0].Name != "getStatus" || catalogue.Commands[0].ProtocolCode != "0x01" || catalogue.Commands[0].Source.Page != 10 || !catalogue.Commands[0].ReadOnly || catalogue.Commands[0].IdempotencyRequired {
++	if w.Code != 200 || len(catalogue.Commands) != 75 || catalogue.Commands[0].Name != "getStatus" || catalogue.Commands[0].ProtocolCode != "0x01" || catalogue.Commands[0].Source.Page != 10 || !catalogue.Commands[0].ReadOnly || catalogue.Commands[0].IdempotencyRequired {
+ 		t.Fatalf("command catalogue: HTTP %d, %d definitions", w.Code, len(catalogue.Commands))
+ 	}
+ 	w = request(t, a, http.MethodGet, "/api/v1/devices", "", "", "")
+diff --git a/internal/service/catalogue.go b/internal/service/catalogue.go
+index 401b3e1..24157f5 100644
+--- a/internal/service/catalogue.go
++++ b/internal/service/catalogue.go
+@@ -208,6 +208,11 @@ func BuiltinCommands() []Command {
+ }
+ 
+ func builtinCommands(now func() time.Time) []Command {
++	commands := appendSharedApplications(baseWireCommands(), now)
++	return append(commands, operationCommand(commands))
++}
++
++func baseWireCommands() []Command {
+ 	var commands []Command
+ 	commands = append(commands, informationCommands()...)
+ 	commands = append(commands, registrationCommands()...)
+@@ -225,12 +230,21 @@ func builtinCommands(now func() time.Time) []Command {
+ 	for i := range commands {
+ 		commands[i].Definition.OperationRequired = commands[i].Definition.Implemented && isWorkflowCommand(commands[i].Definition.ProtocolCode)
+ 	}
+-	for _, command := range commands {
+-		if command.Definition.Name == "setDateTime" {
+-			commands = append(commands, syncDateTimeCommand(command, now))
+-			break
++	return commands
++}
++
++// Bind application workflows after the profile has selected its wire codecs.
++func appendSharedApplications(commands []Command, now func() time.Time) []Command {
++	byCode := wireCommandsByCode(commands)
++	return append(commands, syncDateTimeCommand(byCode[0x72], now), closeShiftIfOpenCommand(byCode))
++}
++
++func wireCommandsByCode(commands []Command) map[byte]Command {
++	byCode := make(map[byte]Command, len(commands))
++	for _, cmd := range commands {
++		if code, ok := operationProtocolCode(cmd.Definition.ProtocolCode); ok {
++			byCode[code] = cmd
+ 		}
+ 	}
+-	commands = append(commands, operationCommand(commands))
+-	return commands
++	return byCode
+ }
+diff --git a/internal/service/clock.go b/internal/service/clock.go
+index 4dfa65b..5a3ffe0 100644
+--- a/internal/service/clock.go
++++ b/internal/service/clock.go
+@@ -16,7 +16,7 @@ type clockSyncResult struct {
+ func syncDateTimeCommand(setDateTime Command, now func() time.Time) Command {
+ 	return Command{
+ 		Definition: CommandDefinition{
+-			Name: "syncDateTime", Aliases: []string{}, Category: "settings",
++			Name: "syncDateTime", Aliases: []string{}, Category: "settings", ProtocolProfile: setDateTime.Definition.ProtocolProfile,
+ 			TitleRU:       "Синхронизировать время ККТ с сервером",
+ 			Description:   "Set the terminal clock from the Go server's local date and time at execution using setDateTime (0x72, TLV tag 30000). Precision is one minute; seconds and timezone are not transmitted. This application command has no protocol command byte.",
+ 			DescriptionRU: "Считать локальные дату и время сервера при выполнении и передать в ККТ стандартной командой 0x72. Точность — одна минута. Входных параметров нет. Возвращается переданное значение dateTime. Повтор requestId возвращает сохраненный результат без повторной синхронизации.",
+diff --git a/internal/service/close_shift.go b/internal/service/close_shift.go
+new file mode 100644
+index 0000000..0e4526b
+--- /dev/null
++++ b/internal/service/close_shift.go
+@@ -0,0 +1,75 @@
++package service
++
++import (
++	"context"
++	"encoding/json"
++	"fmt"
++	"slices"
++
++	"github.com/dronm/goterminalfa/internal/protocol"
++)
++
++func closeShiftIfOpenCommand(byCode map[byte]Command) Command {
++	status, start, cashier, finish := byCode[0x20], byCode[0x29], byCode[0x2F], byCode[0x2A]
++	closing := []Command{start, cashier, finish}
++	prepare := func(raw json.RawMessage) ([]operationStep, error) {
++		params, err := operationObject(raw)
++		if err != nil {
++			return nil, err
++		}
++		return prepareFlatOperationSteps(params, closing)
++	}
++	output := []ParameterDefinition{{
++		Name: "alreadyClosed", TitleRU: "Смена уже закрыта", JSONType: "boolean", Required: true,
++		Description: "True when the status query found a closed shift.",
++	}}
++	for _, field := range finish.Definition.Output {
++		field.Required = field.Name == "shiftNumber"
++		output = append(output, field)
++	}
++	return Command{
++		Definition: CommandDefinition{
++			Name: "closeShiftIfOpen", ProtocolProfile: status.Definition.ProtocolProfile, Aliases: []string{}, Category: "shift",
++			TitleRU:       "Закрыть смену, если она открыта",
++			Description:   "Read shift state (0x20). If open, start closure (0x29), send cashier data (0x2F), and finalize the report (0x2A) under the same device lock.",
++			DescriptionRU: "Проверить состояние смены (0x20). Если смена открыта, начать закрытие (0x29), передать данные кассира (0x2F) и сформировать отчет (0x2A) за одну операцию.",
++			Implemented:   true, IdempotencyRequired: true, RequestLayout: "application", ResponseLayout: "application",
++			Input: slices.Concat(cashier.Definition.Input, start.Definition.Input), Output: output,
++			Notes: []string{
++				"Submit directly with one requestId. A repeat with the same parameters retrieves the journaled outcome.",
++				"Both success branches return alreadyClosed and shiftNumber. A newly closed shift also returns the fiscal report fields from the configured profile.",
++			},
++			Source: Source{Document: "goterminalfa HTTP API", Version: "0.7.7"},
++		},
++		OwnsOperation: true,
++		Validate: func(raw json.RawMessage) error {
++			_, err := prepare(raw)
++			return err
++		},
++		Execute: func(ctx context.Context, device *Device, raw json.RawMessage) (any, error) {
++			steps, err := prepare(raw)
++			if err != nil {
++				return nil, &NotExecutedError{Cause: &requestValidationError{Cause: err}}
++			}
++			data, err := status.Execute(ctx, device, json.RawMessage(`{}`))
++			if err != nil {
++				return nil, &NotExecutedError{Cause: err}
++			}
++			shift := data.(map[string]any)
++			switch state := shift["shiftState"]; state {
++			case uint64(0):
++				return map[string]any{"alreadyClosed": true, "shiftNumber": shift["shiftNumber"]}, nil
++			case uint64(1):
++				results, err := runOperation(ctx, device, steps)
++				if err != nil {
++					return nil, err
++				}
++				report := results[len(results)-1].Data.(map[string]any)
++				report["alreadyClosed"] = false
++				return report, nil
++			default:
++				return nil, &NotExecutedError{Cause: fmt.Errorf("%w: getShiftParameters returned unsupported shift state %v", protocol.ErrMalformedFrame, state)}
++			}
++		},
++	}
++}
+diff --git a/internal/service/close_shift_test.go b/internal/service/close_shift_test.go
+new file mode 100644
+index 0000000..50c95e9
+--- /dev/null
++++ b/internal/service/close_shift_test.go
+@@ -0,0 +1,67 @@
++package service
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"testing"
++
++	terminalfa "github.com/dronm/goterminalfa"
++)
++
++func TestConcurrentCloseShiftIfOpenClosesOnlyOnce(t *testing.T) {
++	const serial = "550101046182"
++	checked, resume := make(chan struct{}), make(chan struct{})
++	open := true
++	transport := &operationSessionExchange{execute: func(ctx context.Context, code byte, _ []byte) ([]byte, error) {
++		switch code {
++		case 0x02:
++			return []byte(serial), nil
++		case 0x20:
++			if open {
++				close(checked)
++				select {
++				case <-resume:
++				case <-ctx.Done():
++					return nil, ctx.Err()
++				}
++				return []byte{1, 42, 0, 0, 0}, nil
++			}
++			return []byte{0, 42, 0, 0, 0}, nil
++		case 0x2A:
++			open = false
++			return []byte{42, 0, 1, 0, 0, 0, 2, 0, 0, 0}, nil
++		}
++		return nil, nil
++	}}
++	device := NewDevice("kkt-1", "serial", serial, terminalfa.NewClient(transport), 2)
++	app, _ := testService(t, []*Device{device}, BuiltinCommands())
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	closeShift := func(id string) <-chan Reply {
++		done := make(chan Reply, 1)
++		go func() {
++			done <- app.Execute(ctx, Request{DeviceID: device.ID, Command: "closeShiftIfOpen", RequestID: id, Params: json.RawMessage(`{"cashierName":"A"}`)})
++		}()
++		return done
++	}
++	first := closeShift("admin")
++	awaitSignal(t, checked)
++	second := closeShift("cron")
++	awaitSlots(t, device, 2)
++	close(resume)
++	for i, done := range []<-chan Reply{first, second} {
++		reply := awaitReply(t, done)
++		if reply.HTTPStatus != 200 {
++			t.Fatalf("request %d: %s", i, reply.Body)
++		}
++		data := responseBody(t, reply).Data.(map[string]any)
++		if data["alreadyClosed"] != (i == 1) || data["shiftNumber"] != float64(42) {
++			t.Fatalf("request %d: unexpected data %s", i, reply.Body)
++		}
++	}
++	want := []byte{0x02, 0x20, 0x29, 0x2F, 0x2A, 0x02, 0x20}
++	if !bytes.Equal(transport.calls, want) || transport.opens != 2 || transport.closes != 2 {
++		t.Fatalf("commands = % X, sessions opened/closed = %d/%d", transport.calls, transport.opens, transport.closes)
++	}
++}
+diff --git a/internal/service/codec_test.go b/internal/service/codec_test.go
+index fb5a06c..af88f1e 100644
+--- a/internal/service/codec_test.go
++++ b/internal/service/codec_test.go
+@@ -87,7 +87,7 @@ func TestTLVUnknownFieldsAndRepeatIntegrity(t *testing.T) {
+ func TestFullCatalogueScopeAndUnresolvedDefinitions(t *testing.T) {
+ 	expected := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0E, 0x10, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x19, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x39, 0x3A, 0x3B, 0x3F, 0x40, 0x50, 0x61, 0x62, 0x63, 0x64, 0x65, 0x69, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x80, 0x81, 0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xBB}
+ 	commands := BuiltinCommands()
+-	if len(commands) != 74 {
++	if len(commands) != 75 {
+ 		t.Fatalf("got %d entries", len(commands))
+ 	}
+ 	var implemented, unavailable int
+diff --git a/internal/service/create_receipt.go b/internal/service/create_receipt.go
+index 18079ce..7cd5902 100644
+--- a/internal/service/create_receipt.go
++++ b/internal/service/create_receipt.go
+@@ -75,12 +75,7 @@ func createCorrectionReceiptCommand(commands []Command) Command {
+ }
+ 
+ func createReceiptWorkflowCommand(commands []Command, workflow receiptWorkflow) Command {
+-	lookup := make(map[byte]Command)
+-	for _, cmd := range commands {
+-		if code, ok := operationProtocolCode(cmd.Definition.ProtocolCode); ok {
+-			lookup[code] = cmd
+-		}
+-	}
++	lookup := wireCommandsByCode(commands)
+ 	parse := func(raw json.RawMessage) (preparedReceipt, error) { return prepareReceipt(raw, lookup, workflow) }
+ 	shiftPrint := registrationSuppressPrint()
+ 	shiftPrint.Name = "suppressShiftPrint"
+diff --git a/internal/service/ffd12.go b/internal/service/ffd12.go
+index e2b9c81..e7d1ed7 100644
+--- a/internal/service/ffd12.go
++++ b/internal/service/ffd12.go
+@@ -3,6 +3,7 @@ package service
+ import (
+ 	"fmt"
+ 	"sort"
++	"time"
+ )
+ 
+ // BuiltinCommandsForProfile selects explicit wire definitions. The base
+@@ -14,17 +15,10 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
+ 	if profile != "ffd1.2" {
+ 		return nil, fmt.Errorf("unsupported protocol profile %q", profile)
+ 	}
+-	base := BuiltinCommands()
++	base := baseWireCommands()
+ 	byCode := make(map[string]Command)
+-	var applications []Command
+ 	var contextualCommands []Command
+ 	for _, cmd := range base {
+-		if cmd.Definition.ProtocolCode == "" {
+-			if cmd.Definition.Name != "executeOperation" {
+-				applications = append(applications, cmd)
+-			}
+-			continue
+-		}
+ 		byCode[cmd.Definition.ProtocolCode] = cmd
+ 	}
+ 	overrides := append(ffd12ShiftCommands(base), ffd12ReceiptCommands()...)
+@@ -70,7 +64,7 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
+ 	legacyClosure.Definition.DescriptionRU = "Для завершения отчета о закрытии ФН в ФФД 1.2 используется команда 0x28 после 0x14 в составе одной операции. Устаревшая команда 0x15 не поддерживается."
+ 	legacyClosure.Definition.Source = ffd12ExtraSource(13)
+ 	byCode["0x15"] = legacyClosure
+-	commands := make([]Command, 0, len(byCode)+len(contextualCommands)+len(applications)+1)
++	commands := make([]Command, 0, len(byCode)+len(contextualCommands))
+ 	for _, cmd := range byCode {
+ 		commands = append(commands, cmd)
+ 	}
+@@ -85,10 +79,7 @@ func BuiltinCommandsForProfile(profile string) ([]Command, error) {
+ 		}
+ 		return commands[i].Definition.ProtocolCode < commands[j].Definition.ProtocolCode
+ 	})
+-	for _, cmd := range applications {
+-		cmd.Definition.ProtocolProfile = profile
+-		commands = append(commands, cmd)
+-	}
++	commands = appendSharedApplications(commands, time.Now)
+ 	commands = append(commands, createReceiptCommand(commands))
+ 	commands = append(commands, createCorrectionReceiptCommand(commands))
+ 	commands = append(commands, registerKktCommand())
+diff --git a/internal/service/operations.go b/internal/service/operations.go
+index d7f306e..c6f7d15 100644
+--- a/internal/service/operations.go
++++ b/internal/service/operations.go
+@@ -118,7 +118,11 @@ func operationCommand(commands []Command) Command {
+ 			if err != nil {
+ 				return nil, err
+ 			}
+-			return runOperation(ctx, device, steps)
++			results, err := runOperation(ctx, device, steps)
++			if err != nil {
++				return nil, err
++			}
++			return map[string]any{"results": results}, nil
+ 		},
+ 	}
+ }
+@@ -209,6 +213,40 @@ func parseOperation(raw json.RawMessage, lookup map[string]Command) ([]operation
+ 	return steps, nil
+ }
+ 
++// prepareFlatOperationSteps splits top-level application parameters among
++// their wire commands and validates every payload before any device access.
++func prepareFlatOperationSteps(object map[string]json.RawMessage, commands []Command) ([]operationStep, error) {
++	allowed := make(map[string]bool)
++	for _, cmd := range commands {
++		for _, field := range cmd.Definition.Input {
++			allowed[field.Name] = true
++		}
++	}
++	for name := range object {
++		if !allowed[name] {
++			return nil, fmt.Errorf("unknown parameter %q", name)
++		}
++	}
++	steps := make([]operationStep, 0, len(commands))
++	for _, cmd := range commands {
++		params := make(map[string]json.RawMessage)
++		for _, field := range cmd.Definition.Input {
++			if value, present := object[field.Name]; present {
++				params[field.Name] = value
++			}
++		}
++		encoded, err := json.Marshal(params)
++		if err != nil {
++			return nil, err
++		}
++		if err := cmd.Validate(encoded); err != nil {
++			return nil, fmt.Errorf("%s: %w", cmd.Definition.Name, err)
++		}
++		steps = append(steps, operationStep{Command: cmd.Definition.Name, Params: encoded, resolved: cmd})
++	}
++	return steps, nil
++}
++
+ // operationObject is independent of envelope decoding because validation is
+ // also used by direct Go callers. It rejects duplicate keys recursively.
+ func operationObject(raw json.RawMessage) (map[string]json.RawMessage, error) {
+@@ -573,7 +611,7 @@ func (o *operationObserver) completeArchive() error {
+ 	return nil
+ }
+ 
+-func runOperation(ctx context.Context, device *Device, steps []operationStep) (any, error) {
++func runOperation(ctx context.Context, device *Device, steps []operationStep) ([]operationResult, error) {
+ 	results := make([]operationResult, 0, len(steps))
+ 	err := device.Client.WithSession(ctx, func(session *terminalfa.Client) error {
+ 		observer := &operationObserver{client: session}
+@@ -623,5 +661,5 @@ func runOperation(ctx context.Context, device *Device, steps []operationStep) (a
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	return map[string]any{"results": results}, nil
++	return results, nil
+ }
+diff --git a/internal/service/profile_test.go b/internal/service/profile_test.go
+index 14beebd..60c0d2a 100644
+--- a/internal/service/profile_test.go
++++ b/internal/service/profile_test.go
+@@ -15,7 +15,7 @@ func TestFFD12CataloguePreservesBaseAndSupportsContextualClosure(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if len(ffd) != 92 {
++	if len(ffd) != 93 {
+ 		t.Fatalf("FFD catalogue has %d entries", len(ffd))
+ 	}
+ 	if _, err := BuiltinCommandsForProfile("invalid"); err == nil {
+diff --git a/internal/service/register_kkt.go b/internal/service/register_kkt.go
+index 803ac0f..a41a815 100644
+--- a/internal/service/register_kkt.go
++++ b/internal/service/register_kkt.go
+@@ -5,7 +5,6 @@ import (
+ 	"encoding/hex"
+ 	"encoding/json"
+ 	"errors"
+-	"fmt"
+ )
+ 
+ type preparedRegistration struct {
+@@ -88,13 +87,12 @@ func registerKktCommand() Command {
+ 			if err := validateRegistrationNumber(prepared.registrationNumber, prepared.userInn, serial); err != nil {
+ 				return nil, &NotExecutedError{Cause: &requestValidationError{Cause: err}}
+ 			}
+-			data, err := runOperation(ctx, device, prepared.steps)
++			results, err := runOperation(ctx, device, prepared.steps)
+ 			if err != nil {
+ 				return nil, err
+ 			}
+ 			// runOperation retains the shared mutation/uncertainty rules; the
+ 			// external registration command returns just the final fiscal data.
+-			results := data.(map[string]any)["results"].([]operationResult)
+ 			return results[len(results)-1].Data, nil
+ 		},
+ 	}
+@@ -106,32 +104,9 @@ func prepareRegistration(raw json.RawMessage, commands []Command) (preparedRegis
+ 	if err != nil {
+ 		return result, err
+ 	}
+-	allowed := make(map[string]bool)
+-	for _, cmd := range commands {
+-		for _, field := range cmd.Definition.Input {
+-			allowed[field.Name] = true
+-		}
+-	}
+-	for name := range object {
+-		if !allowed[name] {
+-			return result, fmt.Errorf("unknown parameter %q", name)
+-		}
+-	}
+-	for _, cmd := range commands {
+-		params := make(map[string]json.RawMessage)
+-		for _, field := range cmd.Definition.Input {
+-			if value, present := object[field.Name]; present {
+-				params[field.Name] = value
+-			}
+-		}
+-		encoded, err := json.Marshal(params)
+-		if err != nil {
+-			return result, err
+-		}
+-		if err := cmd.Validate(encoded); err != nil {
+-			return result, fmt.Errorf("%s: %w", cmd.Definition.Name, err)
+-		}
+-		result.steps = append(result.steps, operationStep{Command: cmd.Definition.Name, Params: encoded, resolved: cmd})
++	result.steps, err = prepareFlatOperationSteps(object, commands)
++	if err != nil {
++		return result, err
+ 	}
+ 	reportType, _ := operationUintParam(raw, "reportType")
+ 	_, hasReason := object["reregistrationReason"]

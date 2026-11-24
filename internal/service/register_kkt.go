@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 )
 
 type preparedRegistration struct {
@@ -88,13 +87,12 @@ func registerKktCommand() Command {
 			if err := validateRegistrationNumber(prepared.registrationNumber, prepared.userInn, serial); err != nil {
 				return nil, &NotExecutedError{Cause: &requestValidationError{Cause: err}}
 			}
-			data, err := runOperation(ctx, device, prepared.steps)
+			results, err := runOperation(ctx, device, prepared.steps)
 			if err != nil {
 				return nil, err
 			}
 			// runOperation retains the shared mutation/uncertainty rules; the
 			// external registration command returns just the final fiscal data.
-			results := data.(map[string]any)["results"].([]operationResult)
 			return results[len(results)-1].Data, nil
 		},
 	}
@@ -106,32 +104,9 @@ func prepareRegistration(raw json.RawMessage, commands []Command) (preparedRegis
 	if err != nil {
 		return result, err
 	}
-	allowed := make(map[string]bool)
-	for _, cmd := range commands {
-		for _, field := range cmd.Definition.Input {
-			allowed[field.Name] = true
-		}
-	}
-	for name := range object {
-		if !allowed[name] {
-			return result, fmt.Errorf("unknown parameter %q", name)
-		}
-	}
-	for _, cmd := range commands {
-		params := make(map[string]json.RawMessage)
-		for _, field := range cmd.Definition.Input {
-			if value, present := object[field.Name]; present {
-				params[field.Name] = value
-			}
-		}
-		encoded, err := json.Marshal(params)
-		if err != nil {
-			return result, err
-		}
-		if err := cmd.Validate(encoded); err != nil {
-			return result, fmt.Errorf("%s: %w", cmd.Definition.Name, err)
-		}
-		result.steps = append(result.steps, operationStep{Command: cmd.Definition.Name, Params: encoded, resolved: cmd})
+	result.steps, err = prepareFlatOperationSteps(object, commands)
+	if err != nil {
+		return result, err
 	}
 	reportType, _ := operationUintParam(raw, "reportType")
 	_, hasReason := object["reregistrationReason"]

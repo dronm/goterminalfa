@@ -118,7 +118,11 @@ func operationCommand(commands []Command) Command {
 			if err != nil {
 				return nil, err
 			}
-			return runOperation(ctx, device, steps)
+			results, err := runOperation(ctx, device, steps)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"results": results}, nil
 		},
 	}
 }
@@ -205,6 +209,40 @@ func parseOperation(raw json.RawMessage, lookup map[string]Command) ([]operation
 	}
 	if err := validateOperationWorkflow(steps); err != nil {
 		return nil, err
+	}
+	return steps, nil
+}
+
+// prepareFlatOperationSteps splits top-level application parameters among
+// their wire commands and validates every payload before any device access.
+func prepareFlatOperationSteps(object map[string]json.RawMessage, commands []Command) ([]operationStep, error) {
+	allowed := make(map[string]bool)
+	for _, cmd := range commands {
+		for _, field := range cmd.Definition.Input {
+			allowed[field.Name] = true
+		}
+	}
+	for name := range object {
+		if !allowed[name] {
+			return nil, fmt.Errorf("unknown parameter %q", name)
+		}
+	}
+	steps := make([]operationStep, 0, len(commands))
+	for _, cmd := range commands {
+		params := make(map[string]json.RawMessage)
+		for _, field := range cmd.Definition.Input {
+			if value, present := object[field.Name]; present {
+				params[field.Name] = value
+			}
+		}
+		encoded, err := json.Marshal(params)
+		if err != nil {
+			return nil, err
+		}
+		if err := cmd.Validate(encoded); err != nil {
+			return nil, fmt.Errorf("%s: %w", cmd.Definition.Name, err)
+		}
+		steps = append(steps, operationStep{Command: cmd.Definition.Name, Params: encoded, resolved: cmd})
 	}
 	return steps, nil
 }
@@ -573,7 +611,7 @@ func (o *operationObserver) completeArchive() error {
 	return nil
 }
 
-func runOperation(ctx context.Context, device *Device, steps []operationStep) (any, error) {
+func runOperation(ctx context.Context, device *Device, steps []operationStep) ([]operationResult, error) {
 	results := make([]operationResult, 0, len(steps))
 	err := device.Client.WithSession(ctx, func(session *terminalfa.Client) error {
 		observer := &operationObserver{client: session}
@@ -623,5 +661,5 @@ func runOperation(ctx context.Context, device *Device, steps []operationStep) (a
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"results": results}, nil
+	return results, nil
 }

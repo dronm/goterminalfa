@@ -136,6 +136,37 @@ Standard DATETIME5 validation and KKT clock-setting restrictions still apply. Th
 
 This is a journaled mutation on either transport. A matching completed request ID replays its original timestamp without sampling or writing the clock again. Use a new request ID for each new intended synchronization, and reconcile unknown outcomes before further action. No recurring or startup synchronization is scheduled.
 
+## Close the shift if it is open
+
+`closeShiftIfOpen` is available on both `base` and `ffd1.2` devices. Submit it directly to `POST /api/v1/commands` with one `requestId` per intended closure. Pronogti sends the cashier and printing settings from its fiscal profile.
+
+```json
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "closeShiftIfOpen",
+	"requestId": "shift-close-001",
+	"params": {
+		"cashierName": "Cashier",
+		"suppressPrint": 0
+	}
+}
+```
+
+| Parameter | Accepted value |
+| --- | --- |
+| `cashierName` | Required string of 1–64 CP866 bytes, validated before checking shift state |
+| `cashierInn` | Optional string of exactly 12 decimal digits |
+| `suppressPrint` | Optional integer. Omission or `0` prints the closing report. `1` suppresses printing. |
+
+The driver holds the device lock from the shift query through finalization. If an expected factory serial is configured, the driver verifies it first with `0x02`.
+
+| State from `0x20` | Subsequent commands | Successful `data` |
+| --- | --- | --- |
+| Closed (`0`) | None | `{"alreadyClosed":true,"shiftNumber":7}`. The number comes from the status query and can be zero. |
+| Open (`1`) | `0x29` start close → `0x2F` send cashier → `0x2A` finalize | `{"alreadyClosed":false,"shiftNumber":7,"documentNumber":85,"fiscalSign":123456}`. The report supplies these numbers. FFD 1.2 also returns `warningFlags`. |
+
+Both branches return HTTP 200 and `status: "completed"`. Retrying the same request ID and parameters retrieves the recorded result, even if another shift has since opened. A failed status query or unsupported shift state stops the operation before any closing command. If the closing report may have started and its outcome is uncertain, the driver returns HTTP 409 with `outcome_unknown`. Use the original ID to retrieve the outcome and reconcile it with the KKT before initiating another closure.
+
 ## Create a receipt with conditional shift opening
 
 `createReceipt` is available only for `ffd1.2` devices. It is an application workflow, not a KKT command byte, and cannot be nested in `executeOperation`. Unlike a static command sequence, it reads shift state and branches before creating a normal unmarked receipt. A request ID is required.
@@ -475,7 +506,7 @@ Errors contain a machine `error.code`, a readable `error.message`, and, for a KK
 
 For `device_error`, the message includes the hexadecimal code and its Russian description from the configured protocol profile. An undocumented code gets a Russian fallback with the original hexadecimal value. The same descriptions appear in receipt diagnostics at `data.failure` and `data.cleanup.error`.
 
-When a later step in `executeOperation` or `registerKkt` is rejected after earlier changes may have taken effect, the response is `409 outcome_unknown`. Its data contains the one-based `failedStep`, canonical `failedStage`, and the device error in `failure`. The driver stores these diagnostics for matching replays and request lookup.
+When a later step in `executeOperation`, `registerKkt`, or `closeShiftIfOpen` is rejected after earlier changes may have taken effect, the response is `409 outcome_unknown`. Its data contains the one-based `failedStep`, canonical `failedStage`, and the device error in `failure`. For `closeShiftIfOpen`, the closing steps are numbered from `0x29`. The driver stores these diagnostics for matching replays and request lookup.
 
 | HTTP status | Error codes |
 | --- | --- |

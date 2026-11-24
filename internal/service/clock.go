@@ -16,7 +16,7 @@ type clockSyncResult struct {
 func syncDateTimeCommand(setDateTime Command, now func() time.Time) Command {
 	return Command{
 		Definition: CommandDefinition{
-			Name: "syncDateTime", Aliases: []string{}, Category: "settings",
+			Name: "syncDateTime", Aliases: []string{}, Category: "settings", ProtocolProfile: setDateTime.Definition.ProtocolProfile,
 			TitleRU:       "Синхронизировать время ККТ с сервером",
 			Description:   "Set the terminal clock from the Go server's local date and time at execution using setDateTime (0x72, TLV tag 30000). Precision is one minute; seconds and timezone are not transmitted. This application command has no protocol command byte.",
 			DescriptionRU: "Считать локальные дату и время сервера при выполнении и передать в ККТ стандартной командой 0x72. Точность — одна минута. Входных параметров нет. Возвращается переданное значение dateTime. Повтор requestId возвращает сохраненный результат без повторной синхронизации.",

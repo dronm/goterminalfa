@@ -1,0 +1,9 @@
+{
+	"deviceId": "cashdesk-1",
+	"cmd": "closeShiftIfOpen",
+	"requestId": "shift-close-001",
+	"params": {
+		"cashierName": "Cashier",
+		"suppressPrint": 0
+	}
+}

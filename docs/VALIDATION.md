@@ -1,5 +1,11 @@
 # Validation
 
+## Conditional shift closure (version 0.7.7)
+
+HTTP tests cover open and closed shifts on both profiles, cashier TLV encoding, omitted and explicit printing flags, required request IDs, input validation, and replay of successful and failed requests. A concurrency test starts an admin closure and a cron closure with different IDs. The first closes the shift and the second reads its closed state, with one closing report across the two requests.
+
+Pronogti's `HTTPDriver.CloseShift` was also exercised against the compiled driver and a simulated TCP KKT for each profile. It recognized both `closed` and `already_closed`. Dropping the final report reply produced `unknown`, and replaying the original ID after a driver restart added zero device commands. The simulated run verified the 10-byte base report and the 11-byte FFD 1.2 report. Physical KKT acceptance remains unverified.
+
 ## Registration and re-registration (version 0.7.6)
 
 Version 0.7.6 adds FFD-only `registerKkt`. It checks Russian INN check digits, a bare sender-email address, and the RN CRC16 against the actual KKT factory serial before beginning internal E1/E2/E3 registration. Initial registration omits the reason; re-registration sends a four-byte UINT32 LE reason mask. User-requested optional tags remain optional, and explicit zero flags remain distinguishable from omitted flags. The public FFD catalogue has 92 entries: 77 implemented wire definitions covering 76 distinct command bytes, 10 unavailable entries, and five application commands. E1/E2/E3 remain internal to the application workflow.

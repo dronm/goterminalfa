@@ -75,12 +75,7 @@ func createCorrectionReceiptCommand(commands []Command) Command {
 }
 
 func createReceiptWorkflowCommand(commands []Command, workflow receiptWorkflow) Command {
-	lookup := make(map[byte]Command)
-	for _, cmd := range commands {
-		if code, ok := operationProtocolCode(cmd.Definition.ProtocolCode); ok {
-			lookup[code] = cmd
-		}
-	}
+	lookup := wireCommandsByCode(commands)
 	parse := func(raw json.RawMessage) (preparedReceipt, error) { return prepareReceipt(raw, lookup, workflow) }
 	shiftPrint := registrationSuppressPrint()
 	shiftPrint.Name = "suppressShiftPrint"
